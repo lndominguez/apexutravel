@@ -1,0 +1,24 @@
+// Barrel export para todos los modelos de Mongoose
+// Permite importar desde @/models en lugar de rutas específicas
+
+// Modelos de usuarios y autenticación
+export { default as User } from './User'
+export type { IUser } from './User'
+export { UserRole, ThemeMode, ColorScheme } from './User'
+export type { UserPreferences } from './User'
+
+// Modelos de inventario
+export { default as Supplier } from './Supplier'
+export type { ISupplier } from './Supplier'
+
+export { default as Flight } from './Flight'
+export type { IFlight } from './Flight'
+
+export { default as Hotel } from './Hotel'
+export type { IHotel } from './Hotel'
+
+export { default as Transport } from './Transport'
+export type { ITransport } from './Transport'
+
+export { default as Package } from './Package'
+export type { IPackage } from './Package'

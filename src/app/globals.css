@@ -1,26 +1,339 @@
 @import "tailwindcss";
+@plugin './hero.ts';
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@source '../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
+@custom-variant dark (&:is(.dark *));
+
+@import "tailwindcss";
+
+@theme {
+  /* Colores base del sistema */
+  --color-background: #ffffff;
+  --color-foreground: #0f172a;
+  --color-muted: #f8fafc;
+  --color-muted-foreground: #64748b;
+  --color-border: #e2e8f0;
+  --color-input: #ffffff;
+  --color-card: #ffffff;
+  --color-card-foreground: #0f172a;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #0f172a;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+
+  /* Tema Azul (por defecto) */
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+  --color-primary: #3b82f6;
+  --color-primary-foreground: #ffffff;
+
+  --color-secondary-100: #e0f2fe;
+  --color-secondary-200: #bae6fd;
+  --color-secondary-300: #7dd3fc;
+  --color-secondary-400: #38bdf8;
+  --color-secondary-500: #0ea5e9;
+  --color-secondary-600: #0284c7;
+  --color-secondary: #0ea5e9;
+  --color-secondary-foreground: #ffffff;
+
+  --color-accent: #f1f5f9;
+  --color-accent-foreground: #0f172a;
+  --color-focus: #2563eb;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Tema Oscuro Base */
+.dark {
+  --color-background: #0f172a;
+  --color-foreground: #f8fafc;
+  --color-muted: #1e293b;
+  --color-muted-foreground: #94a3b8;
+  --color-border: #334155;
+  --color-input: #1e293b;
+  --color-card: #1e293b;
+  --color-card-foreground: #f8fafc;
+  --color-popover: #1e293b;
+  --color-popover-foreground: #f8fafc;
+  --color-accent: #1e293b;
+  --color-accent-foreground: #f8fafc;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Cambiar los selectores de data-color para que coincidan con los valores del servidor */
+
+/* Tema Azul - Claro */
+[data-color="blue"] {
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+  --color-primary: #3b82f6;
+  --color-primary-foreground: #ffffff;
+
+  --color-secondary-100: #e0f2fe;
+  --color-secondary-200: #bae6fd;
+  --color-secondary-300: #7dd3fc;
+  --color-secondary-400: #38bdf8;
+  --color-secondary-500: #0ea5e9;
+  --color-secondary-600: #0284c7;
+  --color-secondary: #0ea5e9;
+  --color-secondary-foreground: #ffffff;
+
+  --color-focus: #2563eb;
+}
+
+/* Tema Azul - Oscuro */
+.dark[data-color="blue"] {
+  --color-primary: #60a5fa;
+  --color-primary-foreground: #1e3a8a;
+  --color-secondary: #38bdf8;
+  --color-secondary-foreground: #0c4a6e;
+  --color-focus: #60a5fa;
+}
+
+/* Tema Rojo - Claro */
+[data-color="red"] {
+  --color-primary-50: #fef2f2;
+  --color-primary-100: #fee2e2;
+  --color-primary-200: #fecaca;
+  --color-primary-300: #fca5a5;
+  --color-primary-400: #f87171;
+  --color-primary-500: #ef4444;
+  --color-primary-600: #dc2626;
+  --color-primary-700: #b91c1c;
+  --color-primary-800: #991b1b;
+  --color-primary-900: #7f1d1d;
+  --color-primary: #ef4444;
+  --color-primary-foreground: #ffffff;
+
+  --color-secondary-100: #ffe4e6;
+  --color-secondary-200: #fecdd3;
+  --color-secondary-300: #fda4af;
+  --color-secondary-400: #fb7185;
+  --color-secondary-500: #f43f5e;
+  --color-secondary-600: #e11d48;
+  --color-secondary: #f43f5e;
+  --color-secondary-foreground: #ffffff;
+
+  --color-focus: #dc2626;
+}
+
+/* Tema Rojo - Oscuro */
+.dark[data-color="red"] {
+  --color-primary: #f87171;
+  --color-primary-foreground: #7f1d1d;
+  --color-secondary: #fb7185;
+  --color-secondary-foreground: #881337;
+  --color-focus: #f87171;
+}
+
+/* Tema Verde - Claro */
+[data-color="green"] {
+  --color-primary-50: #ecfdf5;
+  --color-primary-100: #d1fae5;
+  --color-primary-200: #a7f3d0;
+  --color-primary-300: #6ee7b7;
+  --color-primary-400: #34d399;
+  --color-primary-500: #10b981;
+  --color-primary-600: #059669;
+  --color-primary-700: #047857;
+  --color-primary-800: #065f46;
+  --color-primary-900: #064e3b;
+  --color-primary: #10b981;
+  --color-primary-foreground: #ffffff;
+
+  --color-secondary-100: #dcfce7;
+  --color-secondary-200: #bbf7d0;
+  --color-secondary-300: #86efac;
+  --color-secondary-400: #4ade80;
+  --color-secondary-500: #22c55e;
+  --color-secondary-600: #16a34a;
+  --color-secondary: #22c55e;
+  --color-secondary-foreground: #ffffff;
+
+  --color-focus: #059669;
+}
+
+/* Tema Verde - Oscuro */
+.dark[data-color="green"] {
+  --color-primary: #34d399;
+  --color-primary-foreground: #064e3b;
+  --color-secondary: #4ade80;
+  --color-secondary-foreground: #14532d;
+  --color-focus: #34d399;
+}
+
+/* Tema Púrpura - Claro */
+[data-color="purple"] {
+  --color-primary-50: #faf5ff;
+  --color-primary-100: #f3e8ff;
+  --color-primary-200: #e9d5ff;
+  --color-primary-300: #d8b4fe;
+  --color-primary-400: #c084fc;
+  --color-primary-500: #a855f7;
+  --color-primary-600: #9333ea;
+  --color-primary-700: #7c3aed;
+  --color-primary-800: #6b21a8;
+  --color-primary-900: #581c87;
+  --color-primary: #a855f7;
+  --color-primary-foreground: #ffffff;
+
+  --color-secondary-100: #fdf4ff;
+  --color-secondary-200: #fae8ff;
+  --color-secondary-300: #f5d0fe;
+  --color-secondary-400: #f0abfc;
+  --color-secondary-500: #e879f9;
+  --color-secondary-600: #d946ef;
+  --color-secondary: #e879f9;
+  --color-secondary-foreground: #ffffff;
+
+  --color-focus: #9333ea;
+}
+
+/* Tema Púrpura - Oscuro */
+.dark[data-color="purple"] {
+  --color-primary: #c084fc;
+  --color-primary-foreground: #581c87;
+  --color-secondary: #f0abfc;
+  --color-secondary-foreground: #86198f;
+  --color-focus: #c084fc;
+}
+
+/* Tipografía base en campos de formulario para evitar zoom automático en iOS */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* Transiciones suaves */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-muted);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-600);
+}
+
+/* Scrollbar horizontal para carousel */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 8px;
+}
+
+.scrollbar-thumb-primary::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 10px;
+}
+
+.scrollbar-track-gray-200::-webkit-scrollbar-track {
+  background: #e5e7eb;
+  border-radius: 10px;
+}
+
+/* Animaciones personalizadas */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gradient {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 1s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.8s ease-out 0.3s both;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient 3s ease infinite;
+}
+
+.animate-spin-slow {
+  animation: spin 3s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+/* Ocultar scrollbar del carousel */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
