@@ -107,7 +107,7 @@ export default function PassengerForm({
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Select
                   label="Title"
-                  selectedKeys={[passenger.title]}
+                  selectedKeys={passenger.title ? [passenger.title] : []}
                   onChange={(e) => updatePassenger(index, 'title', e.target.value as any)}
                   size="sm"
                 >

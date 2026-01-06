@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { connectDB } from '@/lib/mongodb'
+import connectDB from '@/lib/db/mongoose'
 import mongoose from 'mongoose'
 
 export async function GET(
@@ -17,7 +17,15 @@ export async function GET(
       )
     }
     
-    const booking = await mongoose.connection.db
+    const db = mongoose.connection.db
+    if (!db) {
+      return NextResponse.json(
+        { success: false, error: 'Error de conexión a la base de datos' },
+        { status: 500 }
+      )
+    }
+    
+    const booking = await db
       .collection('bookings')
       .findOne({ _id: new mongoose.Types.ObjectId(resolvedParams.id) })
     

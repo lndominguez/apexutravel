@@ -7,7 +7,7 @@ import { User } from '@/models/User'
 // GET /api/inventory/suppliers/[id] - Obtener un proveedor por ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -16,8 +16,9 @@ export async function GET(
     }
 
     await connectDB()
+    const { id } = await params
 
-    const supplier = await Supplier.findById(params.id)
+    const supplier = await Supplier.findById(id)
       .populate('createdBy', 'firstName lastName email')
       .populate('updatedBy', 'firstName lastName email')
       .lean()
@@ -42,7 +43,7 @@ export async function GET(
 // PUT /api/inventory/suppliers/[id] - Actualizar proveedor
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -51,6 +52,7 @@ export async function PUT(
     }
 
     await connectDB()
+    const { id } = await params
 
     // Verificar permisos
     const currentUser = await User.findById(session.user.id)
@@ -67,7 +69,7 @@ export async function PUT(
     if (body.taxId) {
       const existingSupplier = await Supplier.findOne({
         taxId: body.taxId,
-        _id: { $ne: params.id }
+        _id: { $ne: id }
       })
       if (existingSupplier) {
         return NextResponse.json(
@@ -79,7 +81,7 @@ export async function PUT(
 
     // Actualizar proveedor
     const supplier = await Supplier.findByIdAndUpdate(
-      params.id,
+      id,
       {
         ...body,
         updatedBy: session.user.id
@@ -121,7 +123,7 @@ export async function PUT(
 // DELETE /api/inventory/suppliers/[id] - Eliminar/desactivar proveedor
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -130,6 +132,7 @@ export async function DELETE(
     }
 
     await connectDB()
+    const { id } = await params
 
     // Verificar permisos (solo super_admin y admin pueden eliminar)
     const currentUser = await User.findById(session.user.id)
@@ -142,7 +145,7 @@ export async function DELETE(
 
     // En lugar de eliminar, desactivamos el proveedor
     const supplier = await Supplier.findByIdAndUpdate(
-      params.id,
+      id,
       {
         status: 'inactive',
         updatedBy: session.user.id

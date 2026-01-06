@@ -6,7 +6,7 @@ import { User } from '@/models/User'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -15,8 +15,9 @@ export async function GET(
     }
 
     await connectDB()
+    const { id } = await params
 
-    const hotel = await Hotel.findById(params.id)
+    const hotel = await Hotel.findById(id)
       .populate('supplier', 'name type email phone')
       .populate('createdBy', 'firstName lastName email')
       .populate('updatedBy', 'firstName lastName email')
@@ -38,7 +39,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -47,6 +48,7 @@ export async function PUT(
     }
 
     await connectDB()
+    const { id } = await params
 
     const currentUser = await User.findById(session.user.id)
     if (!currentUser || !['super_admin', 'admin', 'manager'].includes(currentUser.role)) {
@@ -59,7 +61,7 @@ export async function PUT(
     const body = await request.json()
 
     const hotel = await Hotel.findByIdAndUpdate(
-      params.id,
+      id,
       {
         ...body,
         updatedBy: session.user.id
@@ -98,7 +100,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -107,6 +109,7 @@ export async function DELETE(
     }
 
     await connectDB()
+    const { id } = await params
 
     const currentUser = await User.findById(session.user.id)
     if (!currentUser || !['super_admin', 'admin'].includes(currentUser.role)) {
@@ -117,7 +120,7 @@ export async function DELETE(
     }
 
     const hotel = await Hotel.findByIdAndUpdate(
-      params.id,
+      id,
       {
         status: 'inactive',
         updatedBy: session.user.id

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { connectDB } from '@/lib/mongodb'
+import connectDB from '@/lib/db/mongoose'
 import mongoose from 'mongoose'
 
 export async function POST(request: NextRequest) {
@@ -34,7 +34,15 @@ export async function POST(request: NextRequest) {
       notes: 'Reserva creada - Pendiente de confirmación por agente'
     }
     
-    const result = await mongoose.connection.db.collection('bookings').insertOne(booking)
+    const db = mongoose.connection.db
+    if (!db) {
+      return NextResponse.json(
+        { success: false, error: 'Error de conexión a la base de datos' },
+        { status: 500 }
+      )
+    }
+    
+    const result = await db.collection('bookings').insertOne(booking)
     
     // TODO: Enviar email de confirmación al cliente
     // TODO: Notificar a los agentes sobre la nueva reserva
