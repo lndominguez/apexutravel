@@ -3,6 +3,7 @@
 import { HeroUIProvider } from '@heroui/react'
 import { SessionProvider } from 'next-auth/react'
 import { SWRConfig } from 'swr'
+import { Toaster } from 'sonner'
 import { GlobalLoading } from '@/components/GlobalLoading'
 import { ClientThemeProvider } from '@/components/ClientThemeProvider'
 import { ThemeProvider } from '@/providers/ThemeProvider'
@@ -59,6 +60,7 @@ export function Providers({ children, session }: {
           <ClientThemeProvider>
             <ThemeProvider>
               <GlobalLoading>
+                <Toaster position="top-right" richColors closeButton />
                 {children}
               </GlobalLoading>
             </ThemeProvider>

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { useCurrentUser } from '@/swr/useCurrentUser'
 import { ThemeMode, ColorScheme } from '@/types/user'
@@ -21,7 +22,7 @@ const ThemeContext = createContext<ThemeContextType | null>(null)
 // Valores por defecto
 const DEFAULT_PREFERENCES = {
   theme: ThemeMode.LIGHT,
-  colorScheme: ColorScheme.BLUE,
+  colorScheme: ColorScheme.ORANGE,
   language: 'es'
 }
 
@@ -35,25 +36,21 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [hasInitialized, setHasInitialized] = useState(false)
   
-  // Estado de preferencias
+  // Estado de preferencias - ColorScheme siempre ORANGE (ApexuCode)
   const [theme, setTheme] = useState<ThemeMode>(DEFAULT_PREFERENCES.theme)
-  const [colorScheme, setColorScheme] = useState<ColorScheme>(DEFAULT_PREFERENCES.colorScheme)
   const [language, setLanguage] = useState<string>(DEFAULT_PREFERENCES.language)
+  const colorScheme = ColorScheme.ORANGE // Siempre fijo en ApexuCode
 
   // Cargar preferencias del usuario o localStorage (SOLO UNA VEZ)
   useEffect(() => {
     if (hasInitialized) return
     
-    // Cargar desde localStorage primero (inmediato)
+    // Cargar desde localStorage
     const savedTheme = localStorage.getItem('theme')
-    const savedColorScheme = localStorage.getItem('colorScheme')
     const savedLanguage = localStorage.getItem('language')
 
     if (savedTheme && Object.values(ThemeMode).includes(savedTheme as ThemeMode)) {
       setTheme(savedTheme as ThemeMode)
-    }
-    if (savedColorScheme && Object.values(ColorScheme).includes(savedColorScheme as ColorScheme)) {
-      setColorScheme(savedColorScheme as ColorScheme)
     }
     if (savedLanguage) setLanguage(savedLanguage)
     
@@ -69,12 +66,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     
     // Obtener preferencias de la sesión
     const userTheme = (user.preferences.theme as ThemeMode) || DEFAULT_PREFERENCES.theme
-    const userColorScheme = (user.preferences.colorScheme as ColorScheme) || DEFAULT_PREFERENCES.colorScheme
     const userLanguage = user.preferences.language || DEFAULT_PREFERENCES.language
     
     // Verificar localStorage para evitar sobrescribir cambios recientes
     const localTheme = localStorage.getItem('theme')
-    const localColorScheme = localStorage.getItem('colorScheme')
     
     // Solo actualizar si localStorage coincide con BD (ya sincronizado)
     // o si no hay valor local
@@ -82,13 +77,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       if (theme !== userTheme) {
         console.log('🎨 Sincronizando tema desde sesión:', userTheme)
         setTheme(userTheme)
-      }
-    }
-    
-    if (!localColorScheme || localColorScheme === userColorScheme) {
-      if (colorScheme !== userColorScheme) {
-        console.log('🎨 Sincronizando color desde sesión:', userColorScheme)
-        setColorScheme(userColorScheme)
       }
     }
     
@@ -108,11 +96,11 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     localStorage.setItem('theme', theme)
   }, [theme])
 
-  // Aplicar esquema de color al DOM
+  // Aplicar esquema de color al DOM - Siempre ORANGE
   useEffect(() => {
-    document.documentElement.setAttribute('data-color', colorScheme)
-    localStorage.setItem('colorScheme', colorScheme)
-  }, [colorScheme])
+    document.documentElement.setAttribute('data-color', ColorScheme.ORANGE)
+    localStorage.setItem('colorScheme', ColorScheme.ORANGE)
+  }, [])
 
   // Aplicar idioma
   useEffect(() => {
@@ -141,26 +129,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   }
 
-  // Función para actualizar esquema de color
+  // Función para actualizar esquema de color - Deshabilitada (siempre ORANGE)
   const handleUpdateColorScheme = async (newColorScheme: ColorScheme) => {
-    // Actualizar estado local primero (optimistic update)
-    setColorScheme(newColorScheme)
-    
-    // Si hay sesión, actualizar en la API (pero NO refrescar sesión)
-    if (isAuthenticated && user?.id) {
-      try {
-        await fetch('/api/account/preferences', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ colorScheme: newColorScheme })
-        })
-        console.log('✅ Color actualizado en BD:', newColorScheme)
-      } catch (error) {
-        console.error('❌ Error updating color scheme:', error)
-        // Revertir en caso de error
-        setColorScheme(colorScheme)
-      }
-    }
+    console.log('⚠️ El cambio de color está deshabilitado. El sistema usa colores ApexuCode fijos.')
+    return
   }
 
   // Función para actualizar idioma

@@ -15,60 +15,59 @@ import {
   Tabs,
   Tab,
   Chip,
-  Divider
+  Card,
+  CardBody,
+  Divider,
+  CheckboxGroup,
+  Checkbox
 } from '@heroui/react'
-import { useSuppliers } from '@/swr'
+import { X, Plus, Trash2, Image as ImageIcon, Star } from 'lucide-react'
+import { RoomCategory, RoomOccupancy, RoomViewType } from '@/models/Hotel'
 
-interface RoomType {
+interface RoomTypeForm {
   name: string
   description: string
-  capacity: {
-    adults: number
-    children: number
-  }
-  beds: {
-    type: string
-    quantity: number
-  }[]
+  category: RoomCategory
+  occupancy: RoomOccupancy[]
+  viewType: RoomViewType[]
   amenities: string[]
-  plans: {
-    type: 'room_only' | 'breakfast' | 'half_board' | 'full_board' | 'all_inclusive'
-    costPerNight: number
-    pricePerNight: number
-  }[]
-  availability: number
+  images?: string[]
 }
 
 interface HotelFormData {
-  supplier: string
   name: string
+  chain?: string
+  stars: number
   location: {
     address: string
     city: string
-    state: string
+    state?: string
     country: string
-    zipCode: string
+    postalCode?: string
     coordinates?: {
-      lat: number
-      lng: number
+      latitude: number
+      longitude: number
     }
+    zone?: string
   }
-  category: number
+  phone: string
+  email: string
+  website?: string
   description: string
   amenities: string[]
-  roomTypes: RoomType[]
+  photos: string[]
+  roomTypes: RoomTypeForm[]
   policies: {
     checkIn: string
     checkOut: string
-    cancellation: string
-    children: string
+    cancellation?: string
+    children?: string
+    pets?: string
   }
-  contact: {
-    phone: string
-    email: string
-    website?: string
-  }
-  status: 'active' | 'inactive' | 'maintenance'
+  rating?: number
+  tags?: string[]
+  notes?: string
+  status: 'active' | 'inactive'
 }
 
 interface HotelModalProps {
@@ -79,85 +78,126 @@ interface HotelModalProps {
   isLoading?: boolean
 }
 
-const PLAN_TYPES = [
-  { value: 'room_only', label: 'Solo Habitación' },
-  { value: 'breakfast', label: 'Con Desayuno' },
-  { value: 'half_board', label: 'Media Pensión' },
-  { value: 'full_board', label: 'Pensión Completa' },
-  { value: 'all_inclusive', label: 'Todo Incluido' }
+const ROOM_CATEGORIES = [
+  { value: 'standard', label: 'Standard' },
+  { value: 'superior', label: 'Superior' },
+  { value: 'deluxe', label: 'Deluxe' },
+  { value: 'junior_suite', label: 'Junior Suite' },
+  { value: 'suite', label: 'Suite' },
+  { value: 'luxury', label: 'Luxury' },
+  { value: 'presidential', label: 'Presidential' }
 ]
 
-const BED_TYPES = [
-  { value: 'single', label: 'Individual' },
-  { value: 'double', label: 'Doble' },
-  { value: 'queen', label: 'Queen' },
-  { value: 'king', label: 'King' },
-  { value: 'sofa_bed', label: 'Sofá Cama' }
+const ROOM_OCCUPANCIES = [
+  { value: 'single', label: 'Simple (1 persona)' },
+  { value: 'double', label: 'Doble (2 personas)' },
+  { value: 'triple', label: 'Triple (3 personas)' },
+  { value: 'quad', label: 'Cuádruple (4 personas)' }
+]
+
+const ROOM_VIEW_TYPES = [
+  { value: 'ocean_view', label: 'Vista al Mar' },
+  { value: 'city_view', label: 'Vista a la Ciudad' },
+  { value: 'garden_view', label: 'Vista al Jardín' },
+  { value: 'pool_view', label: 'Vista a la Piscina' },
+  { value: 'mountain_view', label: 'Vista a la Montaña' },
+  { value: 'balcony', label: 'Balcón' },
+  { value: 'no_view', label: 'Sin Vista' }
+]
+
+const COMMON_AMENITIES = [
+  'Piscina', 'Spa', 'Gimnasio', 'Restaurante', 'WiFi', 'Estacionamiento',
+  'Acceso a la Playa', 'Bar', 'Servicio a Habitación', 'Centro de Negocios',
+  'Salón de Eventos', 'Kids Club', 'Lavandería', 'Tienda de Regalos'
+]
+
+const ROOM_AMENITIES = [
+  'Balcón', 'Minibar', 'Cafetera', 'Caja Fuerte', 'Bañera', 'Ducha',
+  'Secador de Pelo', 'TV', 'Aire Acondicionado', 'Escritorio', 'Sofá Cama'
 ]
 
 export default function HotelModal({ isOpen, onClose, onSubmit, hotel, isLoading }: HotelModalProps) {
-  const { suppliers } = useSuppliers({ type: 'hotel' })
   const [activeTab, setActiveTab] = useState('basic')
   const [currentRoomIndex, setCurrentRoomIndex] = useState(0)
 
   const [formData, setFormData] = useState<HotelFormData>({
-    supplier: '',
     name: '',
+    stars: 3,
     location: {
       address: '',
       city: '',
-      state: '',
-      country: 'México',
-      zipCode: ''
+      country: 'México'
     },
-    category: 3,
+    phone: '',
+    email: '',
     description: '',
     amenities: [],
+    photos: [],
     roomTypes: [],
     policies: {
       checkIn: '15:00',
-      checkOut: '12:00',
-      cancellation: '',
-      children: ''
-    },
-    contact: {
-      phone: '',
-      email: ''
+      checkOut: '12:00'
     },
     status: 'active'
   })
 
   const [newAmenity, setNewAmenity] = useState('')
   const [newRoomAmenity, setNewRoomAmenity] = useState('')
+  const [newPhoto, setNewPhoto] = useState('')
+  const [newRoomImage, setNewRoomImage] = useState('')
 
   useEffect(() => {
     if (hotel) {
-      setFormData(hotel)
-    } else {
-      // Reset form
+      // Normalizar roomTypes: convertir occupancy y viewType de string a array si es necesario
+      const normalizedRoomTypes = (hotel.roomTypes || []).map((room: any) => ({
+        ...room,
+        occupancy: Array.isArray(room.occupancy) ? room.occupancy : [room.occupancy],
+        viewType: Array.isArray(room.viewType) ? room.viewType : [room.viewType]
+      }))
+
       setFormData({
-        supplier: '',
+        name: hotel.name || '',
+        chain: hotel.chain,
+        stars: hotel.stars || 3,
+        location: hotel.location || {
+          address: '',
+          city: '',
+          country: 'México'
+        },
+        phone: hotel.phone || '',
+        email: hotel.email || '',
+        website: hotel.website,
+        description: hotel.description || '',
+        amenities: hotel.amenities || [],
+        photos: hotel.photos || [],
+        roomTypes: normalizedRoomTypes,
+        policies: hotel.policies || {
+          checkIn: '15:00',
+          checkOut: '12:00'
+        },
+        rating: hotel.rating,
+        tags: hotel.tags || [],
+        notes: hotel.notes,
+        status: hotel.status || 'active'
+      })
+    } else {
+      setFormData({
         name: '',
+        stars: 3,
         location: {
           address: '',
           city: '',
-          state: '',
-          country: 'México',
-          zipCode: ''
+          country: 'México'
         },
-        category: 3,
+        phone: '',
+        email: '',
         description: '',
         amenities: [],
+        photos: [],
         roomTypes: [],
         policies: {
           checkIn: '15:00',
-          checkOut: '12:00',
-          cancellation: '',
-          children: ''
-        },
-        contact: {
-          phone: '',
-          email: ''
+          checkOut: '12:00'
         },
         status: 'active'
       })
@@ -169,11 +209,13 @@ export default function HotelModal({ isOpen, onClose, onSubmit, hotel, isLoading
     await onSubmit(formData)
   }
 
-  const addAmenity = () => {
-    if (newAmenity.trim()) {
+  // Amenidades del hotel
+  const addAmenity = (amenity?: string) => {
+    const amenityToAdd = amenity || newAmenity.trim()
+    if (amenityToAdd && !formData.amenities.includes(amenityToAdd)) {
       setFormData({
         ...formData,
-        amenities: [...formData.amenities, newAmenity.trim()]
+        amenities: [...formData.amenities, amenityToAdd]
       })
       setNewAmenity('')
     }
@@ -186,21 +228,33 @@ export default function HotelModal({ isOpen, onClose, onSubmit, hotel, isLoading
     })
   }
 
+  // Fotos del hotel
+  const addPhoto = () => {
+    if (newPhoto.trim()) {
+      setFormData({
+        ...formData,
+        photos: [...formData.photos, newPhoto.trim()]
+      })
+      setNewPhoto('')
+    }
+  }
+
+  const removePhoto = (index: number) => {
+    setFormData({
+      ...formData,
+      photos: formData.photos.filter((_, i) => i !== index)
+    })
+  }
+
+  // Habitaciones
   const addRoomType = () => {
-    const newRoom: RoomType = {
+    const newRoom: RoomTypeForm = {
       name: '',
       description: '',
-      capacity: { adults: 2, children: 0 },
-      beds: [{ type: 'double', quantity: 1 }],
-      amenities: [],
-      plans: [
-        {
-          type: 'room_only',
-          costPerNight: 0,
-          pricePerNight: 0
-        }
-      ],
-      availability: 10
+      category: 'standard',
+      occupancy: ['double'],
+      viewType: ['no_view'],
+      amenities: []
     }
     setFormData({
       ...formData,
@@ -232,51 +286,36 @@ export default function HotelModal({ isOpen, onClose, onSubmit, hotel, isLoading
     }
   }
 
-  const addPlanToRoom = (roomIndex: number) => {
-    const updatedRooms = [...formData.roomTypes]
-    updatedRooms[roomIndex].plans.push({
-      type: 'breakfast',
-      costPerNight: 0,
-      pricePerNight: 0
-    })
-    setFormData({ ...formData, roomTypes: updatedRooms })
-  }
-
-  const updatePlan = (roomIndex: number, planIndex: number, field: string, value: any) => {
-    const updatedRooms = [...formData.roomTypes]
-    updatedRooms[roomIndex].plans[planIndex] = {
-      ...updatedRooms[roomIndex].plans[planIndex],
-      [field]: value
-    }
-    
-    // Auto-calcular precio si cambia el costo
-    if (field === 'costPerNight') {
-      const cost = parseFloat(value) || 0
-      const markup = 25 // 25% por defecto
-      updatedRooms[roomIndex].plans[planIndex].pricePerNight = cost * (1 + markup / 100)
-    }
-    
-    setFormData({ ...formData, roomTypes: updatedRooms })
-  }
-
-  const removePlan = (roomIndex: number, planIndex: number) => {
-    const updatedRooms = [...formData.roomTypes]
-    updatedRooms[roomIndex].plans = updatedRooms[roomIndex].plans.filter((_, i) => i !== planIndex)
-    setFormData({ ...formData, roomTypes: updatedRooms })
-  }
-
-  const addRoomAmenity = (roomIndex: number) => {
-    if (newRoomAmenity.trim()) {
+  const addRoomAmenity = (roomIndex: number, amenity?: string) => {
+    const amenityToAdd = amenity || newRoomAmenity.trim()
+    if (amenityToAdd) {
       const updatedRooms = [...formData.roomTypes]
-      updatedRooms[roomIndex].amenities.push(newRoomAmenity.trim())
-      setFormData({ ...formData, roomTypes: updatedRooms })
-      setNewRoomAmenity('')
+      if (!updatedRooms[roomIndex].amenities.includes(amenityToAdd)) {
+        updatedRooms[roomIndex].amenities.push(amenityToAdd)
+        setFormData({ ...formData, roomTypes: updatedRooms })
+        setNewRoomAmenity('')
+      }
     }
   }
 
   const removeRoomAmenity = (roomIndex: number, amenityIndex: number) => {
     const updatedRooms = [...formData.roomTypes]
     updatedRooms[roomIndex].amenities = updatedRooms[roomIndex].amenities.filter((_, i) => i !== amenityIndex)
+    setFormData({ ...formData, roomTypes: updatedRooms })
+  }
+
+  const addRoomImage = (roomIndex: number) => {
+    if (newRoomImage.trim()) {
+      const updatedRooms = [...formData.roomTypes]
+      updatedRooms[roomIndex].images = [...(updatedRooms[roomIndex].images || []), newRoomImage.trim()]
+      setFormData({ ...formData, roomTypes: updatedRooms })
+      setNewRoomImage('')
+    }
+  }
+
+  const removeRoomImage = (roomIndex: number, imageIndex: number) => {
+    const updatedRooms = [...formData.roomTypes]
+    updatedRooms[roomIndex].images = (updatedRooms[roomIndex].images || []).filter((_, i) => i !== imageIndex)
     setFormData({ ...formData, roomTypes: updatedRooms })
   }
 
@@ -290,28 +329,17 @@ export default function HotelModal({ isOpen, onClose, onSubmit, hotel, isLoading
       scrollBehavior="inside"
     >
       <ModalContent>
-        <ModalHeader>
-          {hotel ? 'Editar Hotel' : 'Nuevo Hotel'}
+        <ModalHeader className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            {hotel ? 'Editar Hotel' : 'Nuevo Hotel'}
+            <Chip size="sm" variant="flat" color="primary">Catálogo (sin precios)</Chip>
+          </div>
         </ModalHeader>
         <ModalBody>
           <Tabs selectedKey={activeTab} onSelectionChange={(key) => setActiveTab(key as string)}>
             {/* Tab 1: Información Básica */}
             <Tab key="basic" title="Información Básica">
               <div className="space-y-4 py-4">
-                <Select
-                  label="Proveedor"
-                  placeholder="Selecciona un proveedor"
-                  selectedKeys={formData.supplier ? [formData.supplier] : []}
-                  onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-                  isRequired
-                >
-                  {suppliers?.map((supplier: any) => (
-                    <SelectItem key={supplier._id}>
-                      {supplier.name}
-                    </SelectItem>
-                  ))}
-                </Select>
-
                 <Input
                   label="Nombre del Hotel"
                   placeholder="Ej: Hotel Paradisus Cancún"
@@ -320,66 +348,94 @@ export default function HotelModal({ isOpen, onClose, onSubmit, hotel, isLoading
                   isRequired
                 />
 
-                <Select
-                  label="Categoría"
-                  placeholder="Selecciona estrellas"
-                  selectedKeys={[formData.category.toString()]}
-                  onChange={(e) => setFormData({ ...formData, category: parseInt(e.target.value) })}
-                >
-                  {[1, 2, 3, 4, 5].map((stars) => (
-                    <SelectItem key={stars.toString()}>
-                      {stars} {stars === 1 ? 'Estrella' : 'Estrellas'}
-                    </SelectItem>
-                  ))}
-                </Select>
-
-                <Textarea
-                  label="Descripción"
-                  placeholder="Describe el hotel..."
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  minRows={3}
-                />
-
                 <div className="grid grid-cols-2 gap-4">
                   <Input
-                    label="Teléfono"
-                    placeholder="+52 998 123 4567"
-                    value={formData.contact.phone}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      contact: { ...formData.contact, phone: e.target.value }
-                    })}
-                    isRequired
+                    label="Cadena Hotelera (opcional)"
+                    placeholder="Ej: Marriott, Hilton"
+                    value={formData.chain || ''}
+                    onChange={(e) => setFormData({ ...formData, chain: e.target.value })}
                   />
-                  <Input
-                    label="Email"
-                    type="email"
-                    placeholder="contacto@hotel.com"
-                    value={formData.contact.email}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      contact: { ...formData.contact, email: e.target.value }
-                    })}
+
+                  <Select
+                    label="Categoría (Estrellas)"
+                    placeholder="Selecciona estrellas"
+                    selectionMode="single"
+                    disallowEmptySelection
+                    selectedKeys={new Set([String(formData.stars)])}
+                    onSelectionChange={(keys) => {
+                      const selected = Array.from(keys as Set<string>)[0]
+                      const stars = parseInt(selected || '3', 10)
+                      setFormData((prev) => ({ ...prev, stars }))
+                    }}
+                    renderValue={(items) => items.map((i) => i.textValue).join(', ')}
                     isRequired
-                  />
+                  >
+                    {[1, 2, 3, 4, 5].map((stars) => (
+                      <SelectItem
+                        key={String(stars)}
+                        textValue={`${'⭐'.repeat(stars)} ${stars} ${stars === 1 ? 'Estrella' : 'Estrellas'}`}
+                      >
+                        {Array.from({ length: stars }, (_, i) => '⭐').join('')} {stars} {stars === 1 ? 'Estrella' : 'Estrellas'}
+                      </SelectItem>
+                    ))}
+                  </Select>
                 </div>
 
-                <Input
-                  label="Sitio Web"
-                  placeholder="https://www.hotel.com"
-                  value={formData.contact.website || ''}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    contact: { ...formData.contact, website: e.target.value }
-                  })}
+                <Textarea
+                  label="Descripción del Hotel"
+                  placeholder="Describe el hotel, sus instalaciones y atractivos..."
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  minRows={4}
+                  isRequired
                 />
+
+                <Divider />
+
+                <div>
+                  <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <ImageIcon size={16} />
+                    Fotos del Hotel
+                  </h4>
+                  <div className="flex gap-2 mb-3">
+                    <Input
+                      placeholder="URL de la foto"
+                      value={newPhoto}
+                      onChange={(e) => setNewPhoto(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && addPhoto()}
+                    />
+                    <Button color="primary" onPress={addPhoto} startContent={<Plus size={16} />}>
+                      Agregar
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {formData.photos.map((photo, index) => (
+                      <Card key={index} className="relative">
+                        <CardBody className="p-2">
+                          <img src={photo} alt={`Foto ${index + 1}`} className="w-full h-24 object-cover rounded" />
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            color="danger"
+                            variant="flat"
+                            className="absolute top-1 right-1"
+                            onPress={() => removePhoto(index)}
+                          >
+                            <X size={14} />
+                          </Button>
+                        </CardBody>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
               </div>
             </Tab>
 
-            {/* Tab 2: Ubicación */}
-            <Tab key="location" title="Ubicación">
+            {/* Tab 2: Ubicación y Contacto */}
+            <Tab key="location" title="Ubicación y Contacto">
               <div className="space-y-4 py-4">
+                <h4 className="font-semibold text-primary">Ubicación</h4>
+                
                 <Input
                   label="Dirección"
                   placeholder="Calle y número"
@@ -403,14 +459,13 @@ export default function HotelModal({ isOpen, onClose, onSubmit, hotel, isLoading
                     isRequired
                   />
                   <Input
-                    label="Estado"
+                    label="Estado/Provincia"
                     placeholder="Ej: Quintana Roo"
-                    value={formData.location.state}
+                    value={formData.location.state || ''}
                     onChange={(e) => setFormData({
                       ...formData,
                       location: { ...formData.location, state: e.target.value }
                     })}
-                    isRequired
                   />
                 </div>
 
@@ -427,76 +482,94 @@ export default function HotelModal({ isOpen, onClose, onSubmit, hotel, isLoading
                   <Input
                     label="Código Postal"
                     placeholder="77500"
-                    value={formData.location.zipCode}
+                    value={formData.location.postalCode || ''}
                     onChange={(e) => setFormData({
                       ...formData,
-                      location: { ...formData.location, zipCode: e.target.value }
+                      location: { ...formData.location, postalCode: e.target.value }
                     })}
                   />
                 </div>
 
+                <Input
+                  label="Zona (opcional)"
+                  placeholder="Ej: Zona Hotelera, Centro Histórico"
+                  value={formData.location.zone || ''}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    location: { ...formData.location, zone: e.target.value }
+                  })}
+                />
+
                 <Divider className="my-4" />
-                <p className="text-sm text-gray-600">Coordenadas (Opcional)</p>
+                <h4 className="font-semibold text-primary">Contacto</h4>
+
                 <div className="grid grid-cols-2 gap-4">
                   <Input
-                    label="Latitud"
-                    type="number"
-                    step="0.000001"
-                    placeholder="21.161908"
-                    value={formData.location.coordinates?.lat?.toString() || ''}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      location: {
-                        ...formData.location,
-                        coordinates: {
-                          ...formData.location.coordinates,
-                          lat: parseFloat(e.target.value) || 0,
-                          lng: formData.location.coordinates?.lng || 0
-                        }
-                      }
-                    })}
+                    label="Teléfono"
+                    placeholder="+52 998 123 4567"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    isRequired
                   />
                   <Input
-                    label="Longitud"
-                    type="number"
-                    step="0.000001"
-                    placeholder="-86.851528"
-                    value={formData.location.coordinates?.lng?.toString() || ''}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      location: {
-                        ...formData.location,
-                        coordinates: {
-                          lat: formData.location.coordinates?.lat || 0,
-                          lng: parseFloat(e.target.value) || 0
-                        }
-                      }
-                    })}
+                    label="Email"
+                    type="email"
+                    placeholder="contacto@hotel.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    isRequired
                   />
                 </div>
+
+                <Input
+                  label="Sitio Web (opcional)"
+                  placeholder="https://www.hotel.com"
+                  value={formData.website || ''}
+                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                />
               </div>
             </Tab>
 
             {/* Tab 3: Amenidades */}
             <Tab key="amenities" title="Amenidades">
               <div className="space-y-4 py-4">
+                <p className="text-sm text-gray-600">Amenidades comunes:</p>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {COMMON_AMENITIES.map((amenity) => (
+                    <Button
+                      key={amenity}
+                      size="sm"
+                      variant={formData.amenities.includes(amenity) ? 'solid' : 'bordered'}
+                      color={formData.amenities.includes(amenity) ? 'primary' : 'default'}
+                      onPress={() => formData.amenities.includes(amenity) 
+                        ? removeAmenity(formData.amenities.indexOf(amenity))
+                        : addAmenity(amenity)
+                      }
+                    >
+                      {amenity}
+                    </Button>
+                  ))}
+                </div>
+
+                <Divider />
+
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Ej: Piscina, WiFi, Spa..."
+                    placeholder="Agregar amenidad personalizada..."
                     value={newAmenity}
                     onChange={(e) => setNewAmenity(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && addAmenity()}
                   />
-                  <Button color="primary" onPress={addAmenity}>
+                  <Button color="primary" onPress={() => addAmenity()}>
                     Agregar
                   </Button>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  {formData.amenities.map((amenity, index) => (
+                  {formData.amenities.filter(a => !COMMON_AMENITIES.includes(a)).map((amenity, index) => (
                     <Chip
                       key={index}
-                      onClose={() => removeAmenity(index)}
+                      onClose={() => removeAmenity(formData.amenities.indexOf(amenity))}
                       variant="flat"
                       color="primary"
                     >
@@ -511,16 +584,21 @@ export default function HotelModal({ isOpen, onClose, onSubmit, hotel, isLoading
             <Tab key="rooms" title={`Habitaciones (${formData.roomTypes.length})`}>
               <div className="space-y-4 py-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold">Tipos de Habitación</h3>
-                  <Button color="primary" size="sm" onPress={addRoomType}>
-                    + Agregar Habitación
+                  <div>
+                    <h3 className="text-lg font-semibold">Tipos de Habitación</h3>
+                    <p className="text-sm text-gray-600">Define las habitaciones del catálogo (sin precios)</p>
+                  </div>
+                  <Button color="primary" size="sm" onPress={addRoomType} startContent={<Plus size={16} />}>
+                    Agregar Habitación
                   </Button>
                 </div>
 
                 {formData.roomTypes.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    No hay habitaciones. Agrega al menos una.
-                  </div>
+                  <Card>
+                    <CardBody className="text-center py-8 text-gray-500">
+                      No hay habitaciones. Agrega al menos una.
+                    </CardBody>
+                  </Card>
                 ) : (
                   <>
                     <div className="flex gap-2 overflow-x-auto pb-2">
@@ -538,126 +616,164 @@ export default function HotelModal({ isOpen, onClose, onSubmit, hotel, isLoading
                     </div>
 
                     {currentRoom && (
-                      <div className="space-y-4 border rounded-lg p-4">
-                        <div className="flex justify-between items-center">
-                          <h4 className="font-semibold">Habitación {currentRoomIndex + 1}</h4>
-                          <Button
-                            color="danger"
-                            size="sm"
-                            variant="light"
-                            onPress={() => removeRoomType(currentRoomIndex)}
-                          >
-                            Eliminar
-                          </Button>
-                        </div>
-
-                        <Input
-                          label="Nombre"
-                          placeholder="Ej: Suite Junior"
-                          value={currentRoom.name}
-                          onChange={(e) => updateRoomType(currentRoomIndex, 'name', e.target.value)}
-                          isRequired
-                        />
-
-                        <Textarea
-                          label="Descripción"
-                          placeholder="Describe la habitación..."
-                          value={currentRoom.description}
-                          onChange={(e) => updateRoomType(currentRoomIndex, 'description', e.target.value)}
-                          minRows={2}
-                        />
-
-                        <div className="grid grid-cols-3 gap-4">
-                          <Input
-                            label="Adultos"
-                            type="number"
-                            min="1"
-                            value={currentRoom.capacity.adults.toString()}
-                            onChange={(e) => updateRoomType(currentRoomIndex, 'capacity.adults', parseInt(e.target.value))}
-                          />
-                          <Input
-                            label="Niños"
-                            type="number"
-                            min="0"
-                            value={currentRoom.capacity.children.toString()}
-                            onChange={(e) => updateRoomType(currentRoomIndex, 'capacity.children', parseInt(e.target.value))}
-                          />
-                          <Input
-                            label="Disponibles"
-                            type="number"
-                            min="0"
-                            value={currentRoom.availability.toString()}
-                            onChange={(e) => updateRoomType(currentRoomIndex, 'availability', parseInt(e.target.value))}
-                          />
-                        </div>
-
-                        <Divider />
-
-                        <div>
-                          <div className="flex justify-between items-center mb-2">
-                            <p className="font-semibold">Planes y Precios</p>
-                            <Button size="sm" onPress={() => addPlanToRoom(currentRoomIndex)}>
-                              + Plan
+                      <Card>
+                        <CardBody className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <h4 className="font-semibold">Habitación {currentRoomIndex + 1}</h4>
+                            <Button
+                              color="danger"
+                              size="sm"
+                              variant="light"
+                              onPress={() => removeRoomType(currentRoomIndex)}
+                              startContent={<Trash2 size={16} />}
+                            >
+                              Eliminar
                             </Button>
                           </div>
 
-                          {currentRoom.plans.map((plan, planIndex) => (
-                            <div key={planIndex} className="border rounded p-3 mb-2">
-                              <div className="flex justify-between items-center mb-2">
-                                <Select
-                                  label="Tipo de Plan"
-                                  selectedKeys={[plan.type]}
-                                  onChange={(e) => updatePlan(currentRoomIndex, planIndex, 'type', e.target.value)}
-                                  className="max-w-xs"
-                                  size="sm"
-                                >
-                                  {PLAN_TYPES.map((pt) => (
-                                    <SelectItem key={pt.value}>
-                                      {pt.label}
-                                    </SelectItem>
-                                  ))}
-                                </Select>
-                                <Button
-                                  size="sm"
-                                  color="danger"
-                                  variant="light"
-                                  onPress={() => removePlan(currentRoomIndex, planIndex)}
-                                >
-                                  Eliminar
-                                </Button>
-                              </div>
+                          <Input
+                            label="Nombre"
+                            placeholder="Ej: Habitación Deluxe Vista al Mar"
+                            value={currentRoom.name}
+                            onChange={(e) => updateRoomType(currentRoomIndex, 'name', e.target.value)}
+                            isRequired
+                          />
 
-                              <div className="grid grid-cols-2 gap-2">
-                                <Input
-                                  label="Costo/Noche"
-                                  type="number"
-                                  step="0.01"
-                                  startContent="$"
-                                  value={plan.costPerNight.toString()}
-                                  onChange={(e) => updatePlan(currentRoomIndex, planIndex, 'costPerNight', parseFloat(e.target.value))}
-                                  size="sm"
-                                />
-                                <Input
-                                  label="Precio Venta/Noche"
-                                  type="number"
-                                  step="0.01"
-                                  startContent="$"
-                                  value={plan.pricePerNight.toString()}
-                                  onChange={(e) => updatePlan(currentRoomIndex, planIndex, 'pricePerNight', parseFloat(e.target.value))}
-                                  size="sm"
-                                />
-                              </div>
+                          <Textarea
+                            label="Descripción"
+                            placeholder="Describe la habitación..."
+                            value={currentRoom.description}
+                            onChange={(e) => updateRoomType(currentRoomIndex, 'description', e.target.value)}
+                            minRows={2}
+                            isRequired
+                          />
 
-                              {plan.costPerNight > 0 && (
-                                <p className="text-xs text-gray-600 mt-1">
-                                  Ganancia: ${(plan.pricePerNight - plan.costPerNight).toFixed(2)} 
-                                  ({(((plan.pricePerNight - plan.costPerNight) / plan.costPerNight) * 100).toFixed(1)}%)
-                                </p>
+                          <Divider />
+                          <p className="text-sm font-semibold text-primary">Características (influyen en precio)</p>
+
+                          <div className="grid grid-cols-3 gap-4">
+                            <Select
+                              label="Categoría"
+                              selectedKeys={[currentRoom.category]}
+                              onChange={(e) => updateRoomType(currentRoomIndex, 'category', e.target.value)}
+                              isRequired
+                            >
+                              {ROOM_CATEGORIES.map((cat) => (
+                                <SelectItem key={cat.value}>{cat.label}</SelectItem>
+                              ))}
+                            </Select>
+
+                            <CheckboxGroup
+                              label="Capacidad (selecciona todas las que apliquen)"
+                              value={currentRoom.occupancy}
+                              onValueChange={(values) => updateRoomType(currentRoomIndex, 'occupancy', values)}
+                              isRequired
+                            >
+                              {ROOM_OCCUPANCIES.map((occ) => (
+                                <Checkbox key={occ.value} value={occ.value}>
+                                  {occ.label}
+                                </Checkbox>
+                              ))}
+                            </CheckboxGroup>
+
+                            <div>
+                              <Select
+                                label="Características/Vistas"
+                                selectionMode="multiple"
+                                selectedKeys={currentRoom.viewType}
+                                onSelectionChange={(keys) => {
+                                  const values = Array.from(keys) as string[]
+                                  updateRoomType(currentRoomIndex, 'viewType', values)
+                                }}
+                                isRequired
+                              >
+                                {ROOM_VIEW_TYPES.map((view) => (
+                                  <SelectItem key={view.value}>{view.label}</SelectItem>
+                                ))}
+                              </Select>
+                              {Array.isArray(currentRoom.viewType) && currentRoom.viewType.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {currentRoom.viewType.map((view) => {
+                                    const viewLabel = ROOM_VIEW_TYPES.find(v => v.value === view)?.label || view
+                                    return (
+                                      <Chip key={view} size="sm" variant="flat" color="primary">
+                                        {viewLabel}
+                                      </Chip>
+                                    )
+                                  })}
+                                </div>
                               )}
                             </div>
-                          ))}
-                        </div>
-                      </div>
+                          </div>
+
+                          <Divider />
+                          <p className="text-sm font-semibold">Amenidades de la Habitación</p>
+
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {ROOM_AMENITIES.map((amenity) => (
+                              <Button
+                                key={amenity}
+                                size="sm"
+                                variant={currentRoom.amenities.includes(amenity) ? 'solid' : 'bordered'}
+                                color={currentRoom.amenities.includes(amenity) ? 'success' : 'default'}
+                                onPress={() => currentRoom.amenities.includes(amenity)
+                                  ? removeRoomAmenity(currentRoomIndex, currentRoom.amenities.indexOf(amenity))
+                                  : addRoomAmenity(currentRoomIndex, amenity)
+                                }
+                              >
+                                {amenity}
+                              </Button>
+                            ))}
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Amenidad personalizada..."
+                              value={newRoomAmenity}
+                              onChange={(e) => setNewRoomAmenity(e.target.value)}
+                              onKeyPress={(e) => e.key === 'Enter' && addRoomAmenity(currentRoomIndex)}
+                            />
+                            <Button size="sm" onPress={() => addRoomAmenity(currentRoomIndex)}>
+                              Agregar
+                            </Button>
+                          </div>
+
+                          <Divider />
+                          <p className="text-sm font-semibold">Imágenes de la Habitación</p>
+
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="URL de imagen"
+                              value={newRoomImage}
+                              onChange={(e) => setNewRoomImage(e.target.value)}
+                              onKeyPress={(e) => e.key === 'Enter' && addRoomImage(currentRoomIndex)}
+                            />
+                            <Button size="sm" color="primary" onPress={() => addRoomImage(currentRoomIndex)}>
+                              Agregar
+                            </Button>
+                          </div>
+
+                          <div className="grid grid-cols-4 gap-2">
+                            {(currentRoom.images || []).map((image, imgIndex) => (
+                              <Card key={imgIndex} className="relative">
+                                <CardBody className="p-1">
+                                  <img src={image} alt={`Room ${imgIndex + 1}`} className="w-full h-20 object-cover rounded" />
+                                  <Button
+                                    isIconOnly
+                                    size="sm"
+                                    color="danger"
+                                    variant="flat"
+                                    className="absolute top-0 right-0"
+                                    onPress={() => removeRoomImage(currentRoomIndex, imgIndex)}
+                                  >
+                                    <X size={12} />
+                                  </Button>
+                                </CardBody>
+                              </Card>
+                            ))}
+                          </div>
+                        </CardBody>
+                      </Card>
                     )}
                   </>
                 )}
@@ -676,6 +792,7 @@ export default function HotelModal({ isOpen, onClose, onSubmit, hotel, isLoading
                       ...formData,
                       policies: { ...formData.policies, checkIn: e.target.value }
                     })}
+                    isRequired
                   />
                   <Input
                     label="Check-out"
@@ -685,13 +802,14 @@ export default function HotelModal({ isOpen, onClose, onSubmit, hotel, isLoading
                       ...formData,
                       policies: { ...formData.policies, checkOut: e.target.value }
                     })}
+                    isRequired
                   />
                 </div>
 
                 <Textarea
                   label="Política de Cancelación"
                   placeholder="Describe las condiciones de cancelación..."
-                  value={formData.policies.cancellation}
+                  value={formData.policies.cancellation || ''}
                   onChange={(e) => setFormData({
                     ...formData,
                     policies: { ...formData.policies, cancellation: e.target.value }
@@ -702,13 +820,26 @@ export default function HotelModal({ isOpen, onClose, onSubmit, hotel, isLoading
                 <Textarea
                   label="Política de Niños"
                   placeholder="Describe las condiciones para niños..."
-                  value={formData.policies.children}
+                  value={formData.policies.children || ''}
                   onChange={(e) => setFormData({
                     ...formData,
                     policies: { ...formData.policies, children: e.target.value }
                   })}
                   minRows={3}
                 />
+
+                <Textarea
+                  label="Política de Mascotas"
+                  placeholder="Describe si se permiten mascotas y condiciones..."
+                  value={formData.policies.pets || ''}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    policies: { ...formData.policies, pets: e.target.value }
+                  })}
+                  minRows={2}
+                />
+
+                <Divider />
 
                 <Select
                   label="Estado"
@@ -717,8 +848,15 @@ export default function HotelModal({ isOpen, onClose, onSubmit, hotel, isLoading
                 >
                   <SelectItem key="active">Activo</SelectItem>
                   <SelectItem key="inactive">Inactivo</SelectItem>
-                  <SelectItem key="maintenance">Mantenimiento</SelectItem>
                 </Select>
+
+                <Textarea
+                  label="Notas Internas (opcional)"
+                  placeholder="Notas para uso interno..."
+                  value={formData.notes || ''}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  minRows={2}
+                />
               </div>
             </Tab>
           </Tabs>
@@ -731,7 +869,7 @@ export default function HotelModal({ isOpen, onClose, onSubmit, hotel, isLoading
             color="primary" 
             onPress={handleSubmit}
             isLoading={isLoading}
-            isDisabled={!formData.supplier || !formData.name || formData.roomTypes.length === 0}
+            isDisabled={!formData.name || !formData.description || formData.roomTypes.length === 0}
           >
             {hotel ? 'Actualizar' : 'Crear'} Hotel
           </Button>

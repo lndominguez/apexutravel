@@ -5,6 +5,7 @@ export enum ThemeMode {
 }
 
 export enum ColorScheme {
+  ORANGE = 'orange',
   BLUE = 'blue',
   RED = 'red',
   GREEN = 'green',

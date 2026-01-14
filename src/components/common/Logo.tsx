@@ -1,18 +1,16 @@
 'use client'
 
-import { ShoppingBag } from 'lucide-react'
-
 interface LogoProps {
   variant?: 'default' | 'light' | 'dark'
   size?: 'sm' | 'md' | 'lg'
-  showIcon?: boolean
+  showText?: boolean
   className?: string
 }
 
 export function Logo({ 
   variant = 'default', 
   size = 'md',
-  showIcon = true,
+  showText = true,
   className = '' 
 }: LogoProps) {
   const sizes = {
@@ -42,11 +40,6 @@ export function Logo({
     dark: 'text-gray-900'
   }
 
-  const iconColors = {
-    default: 'text-foreground/80',
-    light: 'text-white/80',
-    dark: 'text-gray-700'
-  }
 
   const containerBg = {
     default: 'bg-primary/10 border-primary/20',
@@ -68,17 +61,11 @@ export function Logo({
       </div>
       
       {/* Logo Text */}
-      <div className="flex items-center gap-2">
-        {showIcon && (
-          <ShoppingBag 
-            size={currentSize.icon} 
-            className={iconColors[variant]} 
-          />
-        )}
+      {showText && (
         <span className={`${currentSize.text} font-black tracking-tight ${textColors[variant]}`}>
           APEXUTravel
         </span>
-      </div>
+      )}
     </div>
   )
 }

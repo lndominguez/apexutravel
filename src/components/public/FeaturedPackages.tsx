@@ -6,10 +6,22 @@ import Link from 'next/link'
 import PackageCard from '@/components/packages/PackageCard'
 import { Package } from 'lucide-react'
 
-const fetcher = (url: string) => fetch(url, { cache: 'no-store' }).then(res => res.json())
+const fetcher = async (url: string) => {
+  const res = await fetch(url, { cache: 'no-store' })
+  if (!res.ok) {
+    throw new Error('Error al cargar paquetes')
+  }
+  const text = await res.text()
+  try {
+    return JSON.parse(text)
+  } catch (e) {
+    console.error('Error parsing JSON:', text)
+    throw new Error('Respuesta inválida del servidor')
+  }
+}
 
 export default function FeaturedPackages() {
-  const { data, error, isLoading } = useSWR('/api/public/packages?status=active&limit=6', fetcher)
+  const { data, error, isLoading } = useSWR('/api/public/search/packages?status=published&limit=6', fetcher)
 
   // Normalizar respuesta de la API
   const packages = data?.packages || []

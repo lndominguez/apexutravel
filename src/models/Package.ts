@@ -95,36 +95,12 @@ export interface IPackage extends Document {
     accommodation?: string
   }>
   
-  // Precios
-  pricing: {
-    // Costo total (suma de todos los componentes)
-    totalCost: number
-    
-    // Markup del paquete
-    packageMarkup: number // % adicional sobre el costo total
-    
-    // Precio de venta base
-    baseSellingPrice: number
-    
-    // Precios por tipo de ocupación
-    pricePerPerson: {
-      single: number
-      double: number
-      triple?: number
-      child?: number
-    }
-    
-    currency: string
-    
-    // Descuentos y promociones
-    discounts?: Array<{
-      type: 'early_bird' | 'group' | 'seasonal' | 'promotional'
-      description: string
-      percentage: number
-      validFrom: Date
-      validTo: Date
-    }>
-  }
+  // PRECIOS MOVIDOS AL INVENTARIO
+  // Los precios se gestionan ahora mediante el sistema de inventario
+  // permitiendo múltiples combinaciones de proveedor/temporada/precio
+  
+  // Markup opcional: ganancia adicional sobre el total de componentes
+  markup?: number
   
   // Disponibilidad
   availability: {
@@ -291,51 +267,13 @@ const PackageSchema = new Schema<IPackage>({
     accommodation: String
   }],
   
-  pricing: {
-    // Estructura nueva (del script de seed)
-    costPerPerson: {
-      double: { type: Number, default: 0 },
-      single: { type: Number, default: 0 },
-      triple: { type: Number, default: 0 },
-      child: { type: Number, default: 0 }
-    },
-    
-    basePricePerPerson: {
-      double: Number,
-      single: Number,
-      triple: Number,
-      child: Number
-    },
-    
-    sellingPricePerPerson: {
-      double: { type: Number, default: 0 },
-      single: { type: Number, default: 0 },
-      triple: { type: Number, default: 0 },
-      child: { type: Number, default: 0 }
-    },
-    
-    currency: { type: String, default: 'USD' },
-    markup: { type: Number, default: 0 },
-    
-    // Campos legacy (mantener por compatibilidad, pero no requeridos)
-    totalCost: Number,
-    packageMarkup: Number,
-    baseSellingPrice: Number,
-    pricePerPerson: {
-      single: Number,
-      double: Number,
-      triple: Number,
-      child: Number
-    },
-    
-    discounts: [{
-      type: { type: String, enum: ['early_bird', 'group', 'seasonal', 'promotional'] },
-      description: String,
-      percentage: Number,
-      validFrom: Date,
-      validTo: Date
-    }]
-  },
+  // PRECIOS MOVIDOS AL INVENTARIO
+  // Los precios ahora se manejan mediante items de inventario
+  // Cada paquete puede tener múltiples items de inventario con diferentes:
+  // - Proveedores
+  // - Temporadas
+  // - Precios
+  // - Disponibilidad
   
   availability: {
     startDate: { type: Date, required: true, index: true },

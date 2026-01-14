@@ -3,7 +3,8 @@ import mongoose, { Schema, Document } from 'mongoose'
 export interface ISupplier extends Document {
   // Información básica
   name: string
-  legalName: string
+  logo?: string // URL del logo del proveedor
+  legalName?: string // Opcional
   type: 'airline' | 'hotel_chain' | 'tour_operator' | 'transport_company' | 'activity_provider' | 'insurance_company' | 'other_agency'
   
   // Contacto
@@ -11,17 +12,17 @@ export interface ISupplier extends Document {
   phone: string
   website?: string
   
-  // Dirección
-  address: {
-    street: string
-    city: string
-    state: string
-    country: string
-    postalCode: string
+  // Dirección (todo opcional)
+  address?: {
+    street?: string
+    city?: string
+    state?: string
+    country?: string
+    postalCode?: string
   }
   
-  // Información legal y financiera
-  taxId: string // RFC, NIT, etc.
+  // Información legal y financiera (opcionales)
+  taxId?: string // RFC, NIT, etc.
   bankAccount?: {
     bankName: string
     accountNumber: string
@@ -78,7 +79,8 @@ export interface ISupplier extends Document {
 
 const SupplierSchema = new Schema<ISupplier>({
   name: { type: String, required: true, index: true },
-  legalName: { type: String, required: true },
+  logo: String,
+  legalName: String, // Ahora opcional
   type: {
     type: String,
     required: true,
@@ -90,14 +92,14 @@ const SupplierSchema = new Schema<ISupplier>({
   website: String,
   
   address: {
-    street: { type: String, required: true },
-    city: { type: String, required: true },
-    state: { type: String, required: true },
-    country: { type: String, required: true },
+    street: String,
+    city: String,
+    state: String,
+    country: String,
     postalCode: String
   },
   
-  taxId: { type: String, required: true, unique: true },
+  taxId: { type: String, sparse: true, unique: true }, // Ahora opcional con índice sparse
   bankAccount: {
     bankName: String,
     accountNumber: String,

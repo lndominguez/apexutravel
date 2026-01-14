@@ -13,8 +13,7 @@ import {
   SelectItem,
   Textarea,
   Divider,
-  Tabs,
-  Tab
+  Chip
 } from '@heroui/react'
 import {
   Building2,
@@ -22,10 +21,9 @@ import {
   Phone,
   Globe,
   MapPin,
-  CreditCard,
   FileText,
   Percent,
-  User
+  Image as ImageIcon
 } from 'lucide-react'
 
 interface SupplierModalProps {
@@ -54,32 +52,28 @@ const paymentMethods = [
 ]
 
 const statuses = [
-  { key: 'pending_approval', label: 'Pendiente de Aprobación' },
+  { key: 'pending_approval', label: 'Pendiente' },
   { key: 'active', label: 'Activo' },
   { key: 'inactive', label: 'Inactivo' },
   { key: 'suspended', label: 'Suspendido' }
 ]
 
 const currencies = [
-  { key: 'USD', label: 'USD - Dólar' },
-  { key: 'MXN', label: 'MXN - Peso Mexicano' },
-  { key: 'EUR', label: 'EUR - Euro' },
-  { key: 'CAD', label: 'CAD - Dólar Canadiense' }
+  { key: 'USD', label: 'USD' },
+  { key: 'MXN', label: 'MXN' },
+  { key: 'EUR', label: 'EUR' },
+  { key: 'CAD', label: 'CAD' }
 ]
 
 export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: SupplierModalProps) {
   const [formData, setFormData] = useState({
-    // Información básica
     name: '',
+    logo: '',
     legalName: '',
     type: 'airline',
-    
-    // Contacto
     email: '',
     phone: '',
     website: '',
-    
-    // Dirección
     address: {
       street: '',
       city: '',
@@ -87,27 +81,15 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
       country: '',
       postalCode: ''
     },
-    
-    // Información legal
     taxId: '',
-    
-    // Términos de pago
     paymentTerms: {
       method: 'prepaid',
       creditDays: 0,
       currency: 'USD'
     },
-    
-    // Comisiones
     defaultCommission: 0,
     defaultMarkup: 15,
-    
-    // Políticas
-    cancellationPolicy: '',
-    refundPolicy: '',
-    
-    // Estado
-    status: 'pending_approval',
+    status: 'active',
     notes: ''
   })
 
@@ -118,6 +100,7 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
     if (supplier && mode === 'edit') {
       setFormData({
         name: supplier.name || '',
+        logo: supplier.logo || '',
         legalName: supplier.legalName || '',
         type: supplier.type || 'airline',
         email: supplier.email || '',
@@ -138,15 +121,13 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
         },
         defaultCommission: supplier.defaultCommission || 0,
         defaultMarkup: supplier.defaultMarkup || 15,
-        cancellationPolicy: supplier.cancellationPolicy || '',
-        refundPolicy: supplier.refundPolicy || '',
-        status: supplier.status || 'pending_approval',
+        status: supplier.status || 'active',
         notes: supplier.notes || ''
       })
     } else {
-      // Reset form for create mode
       setFormData({
         name: '',
+        logo: '',
         legalName: '',
         type: 'airline',
         email: '',
@@ -167,9 +148,7 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
         },
         defaultCommission: 0,
         defaultMarkup: 15,
-        cancellationPolicy: '',
-        refundPolicy: '',
-        status: 'pending_approval',
+        status: 'active',
         notes: ''
       })
     }
@@ -180,13 +159,8 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
     const newErrors: Record<string, string> = {}
 
     if (!formData.name.trim()) newErrors.name = 'El nombre es requerido'
-    if (!formData.legalName.trim()) newErrors.legalName = 'La razón social es requerida'
     if (!formData.email.trim()) newErrors.email = 'El email es requerido'
     if (!formData.phone.trim()) newErrors.phone = 'El teléfono es requerido'
-    if (!formData.taxId.trim()) newErrors.taxId = 'El RFC/NIT es requerido'
-    if (!formData.address.street.trim()) newErrors.street = 'La dirección es requerida'
-    if (!formData.address.city.trim()) newErrors.city = 'La ciudad es requerida'
-    if (!formData.address.country.trim()) newErrors.country = 'El país es requerido'
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -211,7 +185,7 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      size="3xl"
+      size="2xl"
       scrollBehavior="inside"
       classNames={{
         base: "max-h-[90vh]"
@@ -223,31 +197,33 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
             {mode === 'create' ? 'Nuevo Proveedor' : 'Editar Proveedor'}
           </h2>
           <p className="text-sm text-muted-foreground font-normal">
-            {mode === 'create' 
-              ? 'Registra un nuevo proveedor de servicios turísticos' 
-              : 'Actualiza la información del proveedor'}
+            Completa solo la información básica necesaria
           </p>
         </ModalHeader>
 
         <ModalBody>
-          <Tabs aria-label="Información del proveedor" variant="underlined">
-            {/* Tab 1: Información Básica */}
-            <Tab key="basic" title="Información Básica">
-              <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4">
+            {/* Información Básica */}
+            <div>
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <Building2 size={16} />
+                Información Básica
+              </h3>
+              
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
                   <Input
                     label="Nombre Comercial"
                     placeholder="Ej: Aeroméxico"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    startContent={<Building2 size={18} className="text-muted-foreground" />}
                     isRequired
                     isInvalid={!!errors.name}
                     errorMessage={errors.name}
                   />
 
                   <Select
-                    label="Tipo de Proveedor"
+                    label="Tipo"
                     selectedKeys={[formData.type]}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                     isRequired
@@ -261,43 +237,56 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
                 </div>
 
                 <Input
-                  label="Razón Social"
-                  placeholder="Nombre legal de la empresa"
-                  value={formData.legalName}
-                  onChange={(e) => setFormData({ ...formData, legalName: e.target.value })}
-                  startContent={<FileText size={18} className="text-muted-foreground" />}
-                  isRequired
-                  isInvalid={!!errors.legalName}
-                  errorMessage={errors.legalName}
+                  label="Logo (URL)"
+                  placeholder="https://ejemplo.com/logo.png"
+                  value={formData.logo}
+                  onChange={(e) => setFormData({ ...formData, logo: e.target.value })}
+                  startContent={<ImageIcon size={18} className="text-muted-foreground" />}
+                  description="URL del logo del proveedor"
                 />
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <Input
-                    label="RFC / NIT"
-                    placeholder="Identificación fiscal"
-                    value={formData.taxId}
-                    onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
-                    isRequired
-                    isInvalid={!!errors.taxId}
-                    errorMessage={errors.taxId}
+                    label="Razón Social"
+                    placeholder="Opcional"
+                    value={formData.legalName}
+                    onChange={(e) => setFormData({ ...formData, legalName: e.target.value })}
+                    startContent={<FileText size={18} className="text-muted-foreground" />}
                   />
 
-                  <Select
-                    label="Estado"
-                    selectedKeys={[formData.status]}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  >
-                    {statuses.map((status) => (
-                      <SelectItem key={status.key}>
-                        {status.label}
-                      </SelectItem>
-                    ))}
-                  </Select>
+                  <Input
+                    label="RFC / NIT"
+                    placeholder="Opcional"
+                    value={formData.taxId}
+                    onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
+                  />
                 </div>
 
-                <Divider className="my-4" />
+                <Select
+                  label="Estado"
+                  selectedKeys={[formData.status]}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                >
+                  {statuses.map((status) => (
+                    <SelectItem key={status.key}>
+                      {status.label}
+                    </SelectItem>
+                  ))}
+                </Select>
+              </div>
+            </div>
 
-                <div className="grid grid-cols-2 gap-4">
+            <Divider />
+
+            {/* Contacto */}
+            <div>
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <Mail size={16} />
+                Contacto
+              </h3>
+              
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
                   <Input
                     label="Email"
                     type="email"
@@ -330,26 +319,19 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
                   startContent={<Globe size={18} className="text-muted-foreground" />}
                 />
               </div>
-            </Tab>
+            </div>
 
-            {/* Tab 2: Dirección */}
-            <Tab key="address" title="Dirección">
-              <div className="space-y-4 py-4">
-                <Input
-                  label="Calle y Número"
-                  placeholder="Av. Reforma 123"
-                  value={formData.address.street}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    address: { ...formData.address, street: e.target.value }
-                  })}
-                  startContent={<MapPin size={18} className="text-muted-foreground" />}
-                  isRequired
-                  isInvalid={!!errors.street}
-                  errorMessage={errors.street}
-                />
+            <Divider />
 
-                <div className="grid grid-cols-2 gap-4">
+            {/* Ubicación (Opcional) */}
+            <div>
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <MapPin size={16} />
+                Ubicación <Chip size="sm" variant="flat">Opcional</Chip>
+              </h3>
+              
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
                   <Input
                     label="Ciudad"
                     placeholder="Ciudad de México"
@@ -358,23 +340,8 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
                       ...formData,
                       address: { ...formData.address, city: e.target.value }
                     })}
-                    isRequired
-                    isInvalid={!!errors.city}
-                    errorMessage={errors.city}
                   />
 
-                  <Input
-                    label="Estado / Provincia"
-                    placeholder="CDMX"
-                    value={formData.address.state}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      address: { ...formData.address, state: e.target.value }
-                    })}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <Input
                     label="País"
                     placeholder="México"
@@ -383,28 +350,22 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
                       ...formData,
                       address: { ...formData.address, country: e.target.value }
                     })}
-                    isRequired
-                    isInvalid={!!errors.country}
-                    errorMessage={errors.country}
-                  />
-
-                  <Input
-                    label="Código Postal"
-                    placeholder="01000"
-                    value={formData.address.postalCode}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      address: { ...formData.address, postalCode: e.target.value }
-                    })}
                   />
                 </div>
               </div>
-            </Tab>
+            </div>
 
-            {/* Tab 3: Términos Comerciales */}
-            <Tab key="terms" title="Términos Comerciales">
-              <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+            <Divider />
+
+            {/* Términos Comerciales */}
+            <div>
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <Percent size={16} />
+                Términos Comerciales
+              </h3>
+              
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-3">
                   <Select
                     label="Método de Pago"
                     selectedKeys={[formData.paymentTerms.method]}
@@ -412,7 +373,6 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
                       ...formData,
                       paymentTerms: { ...formData.paymentTerms, method: e.target.value as any }
                     })}
-                    startContent={<CreditCard size={18} />}
                   >
                     {paymentMethods.map((method) => (
                       <SelectItem key={method.key}>
@@ -435,25 +395,22 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
                       </SelectItem>
                     ))}
                   </Select>
+
+                  <Input
+                    label="Días Crédito"
+                    type="number"
+                    placeholder="0"
+                    value={formData.paymentTerms.creditDays.toString()}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      paymentTerms: { ...formData.paymentTerms, creditDays: parseInt(e.target.value) || 0 }
+                    })}
+                  />
                 </div>
 
-                <Input
-                  label="Días de Crédito"
-                  type="number"
-                  placeholder="0"
-                  value={formData.paymentTerms.creditDays.toString()}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    paymentTerms: { ...formData.paymentTerms, creditDays: parseInt(e.target.value) || 0 }
-                  })}
-                  description="Días de crédito otorgados por el proveedor"
-                />
-
-                <Divider className="my-4" />
-
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <Input
-                    label="Comisión del Proveedor (%)"
+                    label="Comisión (%)"
                     type="number"
                     placeholder="0"
                     value={formData.defaultCommission.toString()}
@@ -461,12 +418,11 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
                       ...formData,
                       defaultCommission: parseFloat(e.target.value) || 0
                     })}
-                    startContent={<Percent size={18} className="text-muted-foreground" />}
-                    description="% que nos otorga el proveedor"
+                    description="% que nos da"
                   />
 
                   <Input
-                    label="Markup por Defecto (%)"
+                    label="Markup (%)"
                     type="number"
                     placeholder="15"
                     value={formData.defaultMarkup.toString()}
@@ -474,46 +430,26 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
                       ...formData,
                       defaultMarkup: parseFloat(e.target.value) || 0
                     })}
-                    startContent={<Percent size={18} className="text-muted-foreground" />}
-                    description="% de ganancia que aplicamos"
+                    description="% que aplicamos"
                   />
                 </div>
               </div>
-            </Tab>
+            </div>
 
-            {/* Tab 4: Políticas y Notas */}
-            <Tab key="policies" title="Políticas y Notas">
-              <div className="space-y-4 py-4">
-                <Textarea
-                  label="Política de Cancelación"
-                  placeholder="Describe la política de cancelación del proveedor..."
-                  value={formData.cancellationPolicy}
-                  onChange={(e) => setFormData({ ...formData, cancellationPolicy: e.target.value })}
-                  minRows={3}
-                />
+            <Divider />
 
-                <Textarea
-                  label="Política de Reembolso"
-                  placeholder="Describe la política de reembolso del proveedor..."
-                  value={formData.refundPolicy}
-                  onChange={(e) => setFormData({ ...formData, refundPolicy: e.target.value })}
-                  minRows={3}
-                />
-
-                <Textarea
-                  label="Notas Internas"
-                  placeholder="Notas adicionales sobre el proveedor..."
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  minRows={4}
-                  description="Estas notas son solo para uso interno"
-                />
-              </div>
-            </Tab>
-          </Tabs>
+            {/* Notas */}
+            <Textarea
+              label="Notas Internas"
+              placeholder="Notas adicionales..."
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              minRows={3}
+            />
+          </div>
 
           {errors.submit && (
-            <div className="p-3 bg-danger-50 border border-danger-200 rounded-lg">
+            <div className="p-3 bg-danger-50 border border-danger-200 rounded-lg mt-4">
               <p className="text-sm text-danger">{errors.submit}</p>
             </div>
           )}
@@ -532,7 +468,7 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier, mode }: Suppl
             onPress={handleSubmit}
             isLoading={loading}
           >
-            {mode === 'create' ? 'Crear Proveedor' : 'Guardar Cambios'}
+            {mode === 'create' ? 'Crear' : 'Guardar'}
           </Button>
         </ModalFooter>
       </ModalContent>

@@ -1,15 +1,28 @@
 'use client'
 
 import { Card, CardBody, CardFooter, Chip, Button, Skeleton } from '@heroui/react'
-import { Hotel, MapPin, Star, Users } from 'lucide-react'
+import { Hotel, MapPin, Star, Users, Calendar } from 'lucide-react'
 import Link from 'next/link'
 import useSWR from 'swr'
 import Image from 'next/image'
+import { getCheapestRoomAdultBasePrice, getRoomAdultBasePrice } from '@/lib/offerPricing'
 
-const fetcher = (url: string) => fetch(url).then(res => res.json())
+const fetcher = async (url: string) => {
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw new Error('Error al cargar hoteles')
+  }
+  const text = await res.text()
+  try {
+    return JSON.parse(text)
+  } catch (e) {
+    console.error('Error parsing JSON:', text)
+    throw new Error('Respuesta inválida del servidor')
+  }
+}
 
 export default function FeaturedHotels() {
-  const { data, error, isLoading } = useSWR('/api/public/hotels?status=active&limit=6', fetcher)
+  const { data, error, isLoading } = useSWR('/api/public/search/hotels?status=published&limit=6', fetcher)
 
   if (isLoading) {
     return (
@@ -42,95 +55,156 @@ export default function FeaturedHotels() {
   const hotels = (data?.hotels || []).slice(0, 6)
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
       {hotels.map((hotel: any) => {
-        const lowestPrice = Math.min(...(hotel.roomTypes || []).flatMap((rt: any) => 
-          (rt.plans || []).map((p: any) => p.sellingPrice || 0)
-        ))
+        // Extraer info del hotel desde items
+        const hotelItem = hotel.items?.find((item: any) => item.resourceType === 'Hotel')
+        const hotelInfo = hotelItem?.hotelInfo
+        const roomDetails = hotelItem?.selectedRooms?.[0]
+        const selectedRooms = hotelItem?.selectedRooms || []
+        const minRoomPrice = getCheapestRoomAdultBasePrice(selectedRooms)
+        const price = minRoomPrice || hotel.pricing?.finalPrice || 0
+        
+        // Calcular habitación más barata y su availability
+        const cheapestRoom = selectedRooms.length > 0 
+          ? selectedRooms.reduce((min: any, room: any) => {
+              const minPrice = min ? getRoomAdultBasePrice(min) : Infinity
+              const roomPrice = getRoomAdultBasePrice(room)
+              return roomPrice < minPrice ? room : min
+            }, null)
+          : null
+        const availableStock = cheapestRoom?.availability || 0
 
         return (
           <Card
             key={hotel._id}
             isPressable
             as={Link}
-            href={`/search/hotels?city=${hotel.location.city}`}
-            className="group hover:shadow-2xl transition-all duration-300 border-2 border-transparent hover:border-primary"
+            href={`/booking/hotels/${hotel.slug || hotel._id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group hover:shadow-2xl transition-all duration-300 overflow-hidden max-w-sm mx-auto w-full"
           >
             {/* Imagen */}
-            <div className="relative h-48 overflow-hidden">
-              {hotel.images?.[0] ? (
-                <Image
-                  src={hotel.images[0]}
-                  alt={hotel.name}
-                  fill
-                  className="object-cover group-hover:scale-110 transition-transform duration-300"
-                />
+            <div className="relative h-56 overflow-hidden">
+              {(hotel.coverPhoto || hotelInfo?.photos?.[0]) ? (
+                <>
+                  <Image
+                    src={hotel.coverPhoto || hotelInfo.photos[0]}
+                    alt={hotelInfo?.name || hotel.name}
+                    fill
+                    className="object-cover transition-all duration-300"
+                  />
+                  {/* Overlay con tinte naranja en hover */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#ec9c12]/0 to-[#0c3f5b]/0 group-hover:from-[#ec9c12]/30 group-hover:to-[#0c3f5b]/40 transition-all duration-300" />
+                </>
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center">
                   <Hotel size={64} className="text-white opacity-50" />
                 </div>
               )}
               
-              {/* Badge de categoría */}
-              <div className="absolute top-3 right-3">
-                <Chip
-                  color="warning"
-                  variant="solid"
-                  size="sm"
-                  startContent={<Star size={14} fill="currentColor" />}
-                  className="font-bold"
-                >
-                  {hotel.category} ⭐
-                </Chip>
+              {/* Badges superiores */}
+              <div className="absolute top-3 left-3 right-3 flex justify-between items-start">
+                {/* Cupos disponibles */}
+                {availableStock > 0 && (
+                  <Chip
+                    size="sm"
+                    variant="solid"
+                    className="bg-[#ec9c12] text-white font-semibold shadow-lg"
+                    startContent={<Users size={14} />}
+                  >
+                    {availableStock} cupos
+                  </Chip>
+                )}
+                
+                {/* Estrellas */}
+                {hotelInfo?.stars && (
+                  <Chip
+                    variant="solid"
+                    size="sm"
+                    className="bg-white/95 text-gray-800 font-bold shadow-lg"
+                    startContent={<Star size={14} fill="#f1c203" className="text-[#f1c203]" />}
+                  >
+                    {hotelInfo.stars}
+                  </Chip>
+                )}
+              </div>
+              
+              {/* Precio overlay */}
+              <div className="absolute bottom-3 right-3">
+                <div className="bg-white/95 backdrop-blur-sm rounded-xl px-4 py-2 shadow-xl">
+                  <p className="text-xs text-gray-500 font-medium">Desde</p>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-black text-[#ec9c12]">
+                      ${Math.round(price).toLocaleString('es-MX')}
+                    </span>
+                    <span className="text-xs text-gray-500 font-medium">{hotel.pricing?.currency || 'USD'}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <CardBody className="p-6">
+            <CardBody className="p-5">
               {/* Nombre del hotel */}
-              <h3 className="font-black text-lg mb-2 line-clamp-1 group-hover:text-primary transition-colors">
+              <h3 className="font-black text-xl mb-3 line-clamp-2 group-hover:text-[#0c3f5b] transition-colors leading-tight">
                 {hotel.name}
               </h3>
 
+              {/* Nombre del hotel real */}
+              {hotelInfo?.name && hotelInfo.name !== hotel.name && (
+                <p className="text-sm text-gray-600 mb-2 line-clamp-1 font-medium">
+                  {hotelInfo.name}
+                </p>
+              )}
+
               {/* Ubicación */}
-              <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
-                <MapPin size={16} className="text-primary" />
-                <span className="line-clamp-1">
-                  {hotel.location.city}, {hotel.location.country}
-                </span>
-              </div>
+              {hotelInfo?.location && (
+                <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
+                  <MapPin size={16} className="text-[#0c3f5b] flex-shrink-0" />
+                  <span className="line-clamp-1">
+                    {hotelInfo.location.city}, {hotelInfo.location.country}
+                  </span>
+                </div>
+              )}
 
-              {/* Amenidades destacadas */}
+              {/* Plan */}
               <div className="flex flex-wrap gap-2 mb-3">
-                {hotel.amenities?.slice(0, 3).map((amenity: string, idx: number) => (
-                  <Chip key={idx} size="sm" variant="flat" color="default">
-                    {amenity}
+                {roomDetails?.plan && (
+                  <Chip size="sm" variant="flat" className="bg-green-100 text-green-700 font-semibold">
+                    {roomDetails.plan === 'all_inclusive' ? 'Todo incluido' :
+                     roomDetails.plan === 'full_board' ? 'Pensión completa' :
+                     roomDetails.plan === 'half_board' ? 'Media pensión' :
+                     roomDetails.plan === 'breakfast' ? 'Desayuno' : 'Solo alojamiento'}
                   </Chip>
-                ))}
+                )}
               </div>
-
-              {/* Capacidad */}
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <Users size={14} />
-                <span>Hasta {(hotel.roomTypes[0]?.capacity?.adults || 2) + (hotel.roomTypes[0]?.capacity?.children || 0)} personas</span>
-              </div>
+              
+              {/* Descripción */}
+              {hotel.description && (
+                <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
+                  {hotel.description}
+                </p>
+              )}
             </CardBody>
 
-            <CardFooter className="bg-gradient-to-r from-gray-50 to-gray-100 border-t px-6 py-4">
+            <CardFooter className="bg-gradient-to-r from-[#0c3f5b] to-[#0c3f5b]/90 border-t px-5 py-4">
               <div className="flex items-center justify-between w-full">
-                <div>
-                  <p className="text-xs text-gray-500">Desde</p>
-                  <p className="text-2xl font-black text-primary">
-                    ${lowestPrice.toLocaleString('es-MX')}
-                    <span className="text-sm font-normal text-gray-500"> /noche</span>
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className="bg-white/10 rounded-lg p-2">
+                    <Hotel size={24} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-white/70 font-medium">Hotel disponible</p>
+                    <p className="text-sm text-white font-bold">Reservar ahora</p>
+                  </div>
                 </div>
                 <Button
-                  color="primary"
-                  variant="shadow"
-                  size="sm"
-                  className="group-hover:scale-105 transition-transform"
+                  className="bg-[#ec9c12] hover:bg-[#f1c203] text-white font-bold shadow-lg group-hover:scale-105 transition-all"
+                  size="md"
+                  endContent={<span className="text-lg">→</span>}
                 >
-                  Ver Hotel
+                  Ver Oferta
                 </Button>
               </div>
             </CardFooter>

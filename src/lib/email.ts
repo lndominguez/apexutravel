@@ -249,3 +249,81 @@ export const sendPasswordChangedEmail = async (
     )
   })
 }
+
+// Email de confirmación de reserva para el cliente
+export const sendBookingConfirmationClient = async (bookingData: {
+  customerEmail: string
+  customerName: string
+  bookingNumber: string
+  itemName: string
+  itemType: 'package' | 'hotel' | 'flight'
+  totalPrice: number
+  currency: string
+  passengers: Array<{ fullName: string; type: string }>
+  details?: any
+}) => {
+  const { BookingConfirmationClient } = await import('@/emails/templates/booking-confirmation-client')
+  const { renderToStaticMarkup } = await import('react-dom/server')
+  const React = await import('react')
+  
+  const html = renderToStaticMarkup(
+    React.createElement(BookingConfirmationClient, {
+      bookingNumber: bookingData.bookingNumber,
+      customerName: bookingData.customerName,
+      itemName: bookingData.itemName,
+      itemType: bookingData.itemType,
+      totalPrice: bookingData.totalPrice,
+      currency: bookingData.currency,
+      passengers: bookingData.passengers,
+      details: bookingData.details
+    })
+  )
+  
+  return await sendEmail({
+    to: bookingData.customerEmail,
+    subject: `Confirmación de Reserva ${bookingData.bookingNumber} - ApexuTravel`,
+    html
+  })
+}
+
+// Email de notificación de nueva reserva para el administrador
+export const sendBookingNotificationAdmin = async (bookingData: {
+  adminEmail: string
+  customerName: string
+  customerEmail: string
+  customerPhone: string
+  bookingNumber: string
+  itemName: string
+  itemType: 'package' | 'hotel' | 'flight'
+  totalPrice: number
+  currency: string
+  passengers: Array<{ fullName: string; type: string; passport: string }>
+  details?: any
+  bookingId: string
+}) => {
+  const { BookingNotificationAdmin } = await import('@/emails/templates/booking-notification-admin')
+  const { renderToStaticMarkup } = await import('react-dom/server')
+  const React = await import('react')
+  
+  const html = renderToStaticMarkup(
+    React.createElement(BookingNotificationAdmin, {
+      bookingNumber: bookingData.bookingNumber,
+      customerName: bookingData.customerName,
+      customerEmail: bookingData.customerEmail,
+      customerPhone: bookingData.customerPhone,
+      itemName: bookingData.itemName,
+      itemType: bookingData.itemType,
+      totalPrice: bookingData.totalPrice,
+      currency: bookingData.currency,
+      passengers: bookingData.passengers,
+      details: bookingData.details,
+      bookingId: bookingData.bookingId
+    })
+  )
+  
+  return await sendEmail({
+    to: bookingData.adminEmail,
+    subject: `🔔 Nueva Reserva ${bookingData.bookingNumber} - Acción Requerida`,
+    html
+  })
+}

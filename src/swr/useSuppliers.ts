@@ -32,7 +32,7 @@ export function useSuppliers(params?: {
   if (params?.status) queryParams.set('status', params.status)
   if (params?.country) queryParams.set('country', params.country)
 
-  const url = `/api/inventory/suppliers?${queryParams.toString()}`
+  const url = `/api/resources/suppliers?${queryParams.toString()}`
 
   const { data, error, isLoading, mutate } = useSWR(url, fetcher, {
     revalidateOnFocus: false,
@@ -43,7 +43,7 @@ export function useSuppliers(params?: {
   const createSupplier = async (supplierData: any) => {
     setIsCreating(true)
     try {
-      const res = await fetch('/api/inventory/suppliers', {
+      const res = await fetch('/api/resources/suppliers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(supplierData)
@@ -68,7 +68,7 @@ export function useSuppliers(params?: {
   const updateSupplier = async (id: string, supplierData: any) => {
     setIsUpdating(true)
     try {
-      const res = await fetch(`/api/inventory/suppliers/${id}`, {
+      const res = await fetch(`/api/resources/suppliers/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(supplierData)
@@ -93,7 +93,7 @@ export function useSuppliers(params?: {
   const deleteSupplier = async (id: string) => {
     setIsDeleting(true)
     try {
-      const res = await fetch(`/api/inventory/suppliers/${id}`, {
+      const res = await fetch(`/api/resources/suppliers/${id}`, {
         method: 'DELETE'
       })
 
@@ -131,7 +131,7 @@ export function useSuppliers(params?: {
 
 export function useSupplier(id: string | null) {
   const { data, error, isLoading, mutate } = useSWR(
-    id ? `/api/inventory/suppliers/${id}` : null,
+    id ? `/api/resources/suppliers/${id}` : null,
     fetcher
   )
 

@@ -17,10 +17,9 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
     const search = searchParams.get('search') || ''
-    const supplier = searchParams.get('supplier') || ''
     const status = searchParams.get('status') || ''
     const city = searchParams.get('city') || ''
-    const category = searchParams.get('category') || ''
+    const stars = searchParams.get('stars') || ''
 
     const filters: any = {}
 
@@ -31,10 +30,9 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    if (supplier) filters.supplier = supplier
     if (status) filters.status = status
     if (city) filters['location.city'] = { $regex: city, $options: 'i' }
-    if (category) filters.category = parseInt(category)
+    if (stars) filters.stars = parseInt(stars)
 
     const skip = (page - 1) * limit
 
@@ -43,7 +41,6 @@ export async function GET(request: NextRequest) {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .populate('supplier', 'name type')
         .populate('createdBy', 'firstName lastName')
         .lean(),
       Hotel.countDocuments(filters)
@@ -86,9 +83,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
 
-    if (!body.supplier || !body.name || !body.location) {
+    if (!body.name || !body.location || !body.description) {
       return NextResponse.json(
-        { error: 'Faltan campos requeridos' },
+        { error: 'Faltan campos requeridos: name, location, description' },
         { status: 400 }
       )
     }
@@ -99,7 +96,6 @@ export async function POST(request: NextRequest) {
     }) as any
 
     const populatedHotel = await Hotel.findById(hotel._id)
-      .populate('supplier', 'name type')
       .populate('createdBy', 'firstName lastName')
       .lean()
 

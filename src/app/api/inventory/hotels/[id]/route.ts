@@ -18,7 +18,6 @@ export async function GET(
     const { id } = await params
 
     const hotel = await Hotel.findById(id)
-      .populate('supplier', 'name type email phone')
       .populate('createdBy', 'firstName lastName email')
       .populate('updatedBy', 'firstName lastName email')
       .lean()
@@ -68,7 +67,6 @@ export async function PUT(
       },
       { new: true, runValidators: true }
     )
-      .populate('supplier', 'name type')
       .populate('createdBy', 'firstName lastName')
       .populate('updatedBy', 'firstName lastName')
       .lean()
@@ -111,6 +109,10 @@ export async function DELETE(
     await connectDB()
     const { id } = await params
 
+    // Verificar si es eliminación permanente
+    const { searchParams } = new URL(request.url)
+    const isPermanent = searchParams.get('permanent') === 'true'
+
     const currentUser = await User.findById(session.user.id)
     if (!currentUser || !['super_admin', 'admin'].includes(currentUser.role)) {
       return NextResponse.json(
@@ -119,6 +121,28 @@ export async function DELETE(
       )
     }
 
+    if (isPermanent) {
+      // Eliminación permanente (solo super_admin)
+      if (currentUser.role !== 'super_admin') {
+        return NextResponse.json(
+          { error: 'Solo super_admin puede eliminar permanentemente' },
+          { status: 403 }
+        )
+      }
+
+      const hotel = await Hotel.findByIdAndDelete(id).lean()
+
+      if (!hotel) {
+        return NextResponse.json({ error: 'Hotel no encontrado' }, { status: 404 })
+      }
+
+      return NextResponse.json({
+        message: 'Hotel eliminado permanentemente',
+        hotel
+      })
+    }
+
+    // En lugar de eliminar, desactivamos el hotel
     const hotel = await Hotel.findByIdAndUpdate(
       id,
       {

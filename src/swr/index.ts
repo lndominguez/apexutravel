@@ -11,7 +11,10 @@ export { useSuppliers, useSupplier } from '@/swr/useSuppliers'
 export { useFlights, useFlight } from '@/swr/useFlights'
 export { useHotels, useHotel } from '@/swr/useHotels'
 export { useTransports, useTransport } from '@/swr/useTransports'
-export { usePackages, usePackage } from '@/swr/usePackages'
+export { useInventory, useInventoryItem, createInventoryItem, updateInventoryItem, deleteInventoryItem } from '@/swr/useInventory'
+export type { InventoryItem, InventoryFilters } from '@/swr/useInventory'
+export { useOfferPackages, useOfferPackage } from '@/swr/useOfferPackages'
+export { useOfferHotels, useOfferHotel } from '@/swr/useOfferHotels'
 
 // Tipos compartidos
 export type {

@@ -412,7 +412,7 @@ export default function FlightBookingPage() {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-md space-y-6">
-          <Logo size="lg" variant="dark" showIcon={false} className="justify-center" />
+          <Logo size="lg" variant="dark" showText={false} className="justify-center" />
           
           {/* Ticket compacto estilo tirilla */}
           <div className="relative">
@@ -533,7 +533,7 @@ export default function FlightBookingPage() {
             >
               Volver
             </Button>
-            <Logo size="sm" variant="dark" showIcon={false} />
+            <Logo size="sm" variant="dark" showText={false} />
             <div className="w-16" />
           </div>
 

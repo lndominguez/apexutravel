@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissions } from '@/hooks/usePermissions'
-import { 
-  LayoutDashboard, 
-  Users, 
-  User, 
+import {
+  LayoutDashboard,
+  Users,
+  User,
   Settings,
   Shield,
   UserPlus,
@@ -23,9 +23,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
-  Home
+  Home,
+  Boxes,
+  Luggage
 } from 'lucide-react'
 import { Button, Input, Badge } from '@heroui/react'
+import { Logo } from '@/components/common/Logo'
 
 // Tipos para navegación
 interface NavigationItem {
@@ -58,54 +61,109 @@ const navigationSections: NavigationSection[] = [
         description: 'Panel principal de control'
       },
       {
+        name: 'Recursos',
+        href: '/resources',
+        icon: Boxes,
+        current: false,
+        badge: null,
+        description: 'Catálogo base sin precios',
+        subItems: [
+          {
+            name: 'Vuelos',
+            href: '/resources/flights',
+            icon: Plane,
+            current: false,
+            badge: null,
+            description: 'Catálogo de vuelos (sin precios)'
+          },
+          {
+            name: 'Hoteles',
+            href: '/resources/hotels',
+            icon: Hotel,
+            current: false,
+            badge: null,
+            description: 'Catálogo de hoteles (sin precios)'
+          },
+          {
+            name: 'Transportes',
+            href: '/resources/transports',
+            icon: Car,
+            current: false,
+            badge: null,
+            description: 'Catálogo de transportes (sin precios)'
+          },
+          {
+            name: 'Proveedores',
+            href: '/resources/suppliers',
+            icon: MapPin,
+            current: false,
+            badge: null,
+            description: 'Gestión de proveedores'
+          }
+        ]
+      },
+      {
         name: 'Inventario',
         href: '/inventory',
         icon: Package,
         current: false,
         badge: null,
-        description: 'Gestión de productos y servicios',
+        description: 'Precios por proveedor/temporada'
+      },
+      {
+        name: 'Offers',
+        href: '/offers',
+        icon: Luggage,
+        current: false,
+        badge: null,
+        description: 'Lo que ve el público',
         subItems: [
           {
-            name: 'Proveedores',
-            href: '/inventory/suppliers',
-            icon: MapPin,
+            name: 'Panel de Ofertas',
+            href: '/offers/dashboard',
+            icon: LayoutDashboard,
             current: false,
             badge: null,
-            description: 'Gestión de proveedores'
+            description: 'Dashboard de ofertas'
           },
           {
-            name: 'Vuelos',
-            href: '/inventory/flights',
+            name: 'Paquetes Turísticos',
+            href: '/offers/packages',
+            icon: Luggage,
+            current: false,
+            badge: null,
+            description: 'Ofertas combinadas de inventario'
+          },
+          {
+            name: 'Vuelos a Publicar',
+            href: '/offers/flights',
             icon: Plane,
             current: false,
             badge: null,
-            description: 'Gestión de vuelos'
+            description: 'Vuelos disponibles para clientes'
           },
           {
-            name: 'Paquetes',
-            href: '/inventory/packages',
-            icon: Package,
-            current: false,
-            badge: null,
-            description: 'Gestión de paquetes turísticos'
-          },
-          {
-            name: 'Hoteles',
-            href: '/inventory/hotels',
+            name: 'Hoteles a Publicar',
+            href: '/offers/hotels',
             icon: Hotel,
             current: false,
             badge: null,
-            description: 'Gestión de hoteles'
-          },
-          {
-            name: 'Transportes',
-            href: '/inventory/transports',
-            icon: Car,
-            current: false,
-            badge: null,
-            description: 'Gestión de transportes'
+            description: 'Hoteles disponibles para clientes'
           }
         ]
+      }
+    ]
+  },
+  {
+    name: 'Ventas',
+    items: [
+      {
+        name: 'Reservas',
+        href: '/admin/bookings',
+        icon: Search,
+        current: false,
+        badge: null,
+        description: 'Gestión de reservas y ventas'
       }
     ]
   },
@@ -167,15 +225,35 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
   const pathname = usePathname()
   const { user } = useAuth() // ✅ Datos en tiempo real
   const { canAccessAdmin, hasPermission } = usePermissions()
-  const [expandedItems, setExpandedItems] = useState<string[]>(['Inventario']) // Inventario expandido por defecto
+  const [expandedItems, setExpandedItems] = useState<string[]>([]) // Se auto-expande según ruta
 
   const toggleExpanded = (itemName: string) => {
-    setExpandedItems(prev => 
-      prev.includes(itemName) 
+    setExpandedItems(prev =>
+      prev.includes(itemName)
         ? prev.filter(name => name !== itemName)
         : [...prev, itemName]
     )
   }
+
+  // Auto-expandir menús según la ruta actual
+  useEffect(() => {
+    const itemsToExpand: string[] = []
+
+    navigationSections.forEach(section => {
+      section.items.forEach(item => {
+        if (item.subItems) {
+          const hasActiveSubItem = item.subItems.some(subItem =>
+            pathname === subItem.href || pathname.startsWith(subItem.href + '/')
+          )
+          if (hasActiveSubItem) {
+            itemsToExpand.push(item.name)
+          }
+        }
+      })
+    })
+
+    setExpandedItems(itemsToExpand)
+  }, [pathname])
 
   // Filtrar y procesar secciones de navegación
   const processedSections = navigationSections.map(section => ({
@@ -186,28 +264,45 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
         if (item.requiresPermission === 'admin') {
           return canAccessAdmin
         }
-        if (item.href.startsWith('/inventory')) {
+        if (item.href.startsWith('/inventory') || item.href.startsWith('/resources') ||
+          item.href.startsWith('/packages') || item.href.startsWith('/offers')) {
           return hasPermission('INVENTORY', 'VIEW')
         }
         // Otras rutas siempre visibles
         return true
       })
-      .map(item => ({
-        ...item,
-        current: pathname === item.href || 
-                 (item.href === '/admin/users' && pathname.startsWith('/admin/users')) ||
-                 (item.href === '/admin/roles' && pathname.startsWith('/admin/roles')) ||
-                 (item.href === '/account/profile' && pathname.startsWith('/account/profile')) ||
-                 (item.href === '/account/preferences' && pathname.startsWith('/account/preferences')) ||
-                 (item.href === '/inventory' && pathname.startsWith('/inventory'))
-      }))
+      .map(item => {
+        // Determinar si el item está activo
+        let isCurrentItem = false
+
+        // Si tiene subitems, marcar padre activo si algún subitem está activo
+        if (item.subItems) {
+          // Verificar coincidencia exacta con el padre
+          isCurrentItem = pathname === item.href
+
+          // O si algún subitem está activo
+          if (!isCurrentItem) {
+            isCurrentItem = item.subItems.some(subItem =>
+              pathname === subItem.href || pathname.startsWith(subItem.href + '/')
+            )
+          }
+        } else {
+          // Para items sin subitems, usar coincidencia exacta o startsWith
+          isCurrentItem = pathname === item.href || pathname.startsWith(item.href + '/')
+        }
+
+        return {
+          ...item,
+          current: isCurrentItem
+        }
+      })
   })).filter(section => section.items.length > 0) // Solo mostrar secciones con elementos
 
   return (
     <>
       {/* Mobile sidebar backdrop */}
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-black/20 lg:hidden"
           onClick={onClose}
         />
@@ -223,13 +318,8 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center justify-between px-4 border-b border-border">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <Plane className="h-4 w-4 text-primary-foreground" />
-              </div>
-              {!isCollapsed && (
-                <span className="text-lg font-semibold text-foreground">Travel CRM</span>
-              )}
+            <div className="flex items-center">
+              <Logo size="sm" variant="default" showText={!isCollapsed} />
             </div>
             <div className="flex items-center gap-1">
               {!isCollapsed && (
@@ -255,18 +345,6 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
             </div>
           </div>
 
-          {/* Search */}
-          {!isCollapsed && (
-            <div className="p-4">
-              <Input
-                placeholder="Buscar en CRM..."
-                startContent={<Search size={16} className="text-muted-foreground" />}
-                variant="bordered"
-                size="sm"
-              />
-            </div>
-          )}
-
           {/* Navigation */}
           <nav className="flex-1 space-y-4 px-3 pb-4 overflow-y-auto">
             {processedSections.map((section) => (
@@ -279,7 +357,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
                     </h3>
                   </div>
                 )}
-                
+
                 {/* Section Items */}
                 <div className="space-y-1">
                   {section.items.map((item) => (
@@ -295,8 +373,8 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
                         }}
                         className={`
                           w-full flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors
-                          ${item.current 
-                            ? 'bg-primary text-primary-foreground shadow-sm' 
+                          ${item.current
+                            ? 'bg-primary text-primary-foreground shadow-sm'
                             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                           }
                           ${isCollapsed ? 'justify-center' : ''}
@@ -329,7 +407,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
                               className={`
                                 w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors
                                 ${pathname === subItem.href || pathname.startsWith(subItem.href + '/')
-                                  ? 'bg-primary/10 text-primary' 
+                                  ? 'bg-primary/10 text-primary'
                                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                                 }
                               `}
@@ -344,7 +422,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
                     </div>
                   ))}
                 </div>
-                
+
                 {/* Separator between sections */}
                 {!isCollapsed && section !== processedSections[processedSections.length - 1] && (
                   <div className="my-4 border-t border-border/50" />

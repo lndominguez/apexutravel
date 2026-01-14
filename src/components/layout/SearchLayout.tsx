@@ -3,7 +3,6 @@
 import { ReactNode, useState, useEffect } from 'react'
 import { 
   LogOut,
-  Palette,
   Moon,
   Sun,
   User as UserIcon,
@@ -46,9 +45,7 @@ export function SearchLayout({ children, moduleTitle, moduleIcon, moduleDescript
   const [searchPanelOpen, setSearchPanelOpen] = useState(false)
   const {
     theme,
-    updateTheme,
-    colorScheme,
-    updateColorScheme
+    updateTheme
   } = useTheme()
 
   const handleLogout = async () => {
@@ -62,17 +59,6 @@ export function SearchLayout({ children, moduleTitle, moduleIcon, moduleDescript
     const newTheme = theme === ThemeMode.DARK ? ThemeMode.LIGHT : ThemeMode.DARK
     await updateTheme(newTheme)
   }
-
-  const changeColorScheme = async (colorScheme: ColorScheme) => {
-    await updateColorScheme(colorScheme)
-  }
-
-  const colorSchemes = [
-    { key: ColorScheme.BLUE, label: 'Azul', color: 'bg-blue-500' },
-    { key: ColorScheme.RED, label: 'Rojo', color: 'bg-red-500' },
-    { key: ColorScheme.GREEN, label: 'Verde', color: 'bg-green-500' },
-    { key: ColorScheme.PURPLE, label: 'Púrpura', color: 'bg-purple-500' }
-  ]
 
   // Cerrar menú mobile cuando se cambia a desktop
   useEffect(() => {
@@ -94,7 +80,7 @@ export function SearchLayout({ children, moduleTitle, moduleIcon, moduleDescript
           <div className="flex items-center justify-between h-14 sm:h-16">
             {/* Left section - Logo */}
             <div className="cursor-pointer" onClick={() => router.push('/')}>
-              <Logo size="sm" variant="default" showIcon={true} />
+              <Logo size="sm" variant="default" showText={true} />
             </div>
 
             {/* Right section - User actions */}
@@ -122,34 +108,6 @@ export function SearchLayout({ children, moduleTitle, moduleIcon, moduleDescript
                 >
                   {theme === ThemeMode.DARK ? <Sun size={16} /> : <Moon size={16} />}
                 </Button>
-
-                {/* Color Scheme Selector */}
-                <Dropdown>
-                  <DropdownTrigger>
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="light"
-                      title="Cambiar esquema de color"
-                    >
-                      <Palette size={16} />
-                    </Button>
-                  </DropdownTrigger>
-                  <DropdownMenu aria-label="Esquemas de color">
-                    {colorSchemes.map((scheme) => (
-                      <DropdownItem
-                        key={scheme.key}
-                        startContent={
-                          <div className={`w-3 h-3 rounded-full ${scheme.color}`} />
-                        }
-                        onClick={() => changeColorScheme(scheme.key)}
-                        className={colorScheme === scheme.key ? 'bg-primary-50' : ''}
-                      >
-                        {scheme.label}
-                      </DropdownItem>
-                    ))}
-                  </DropdownMenu>
-                </Dropdown>
 
                 {/* User section */}
                 {session?.user ? (
@@ -237,30 +195,6 @@ export function SearchLayout({ children, moduleTitle, moduleIcon, moduleDescript
                   {theme === ThemeMode.DARK ? 'Modo Claro' : 'Modo Oscuro'}
                 </span>
               </button>
-
-              {/* Color Schemes Mobile */}
-              <div className="px-3 py-2">
-                <p className="text-xs font-medium text-muted-foreground mb-2">Esquema de Color</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {colorSchemes.map((scheme) => (
-                    <button
-                      key={scheme.key}
-                      onClick={() => {
-                        changeColorScheme(scheme.key)
-                        setMobileMenuOpen(false)
-                      }}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-                        colorScheme === scheme.key 
-                          ? 'bg-primary/10 border border-primary/20' 
-                          : 'bg-muted/30 hover:bg-muted/50'
-                      }`}
-                    >
-                      <div className={`w-4 h-4 rounded-full ${scheme.color}`} />
-                      <span className="text-sm font-medium">{scheme.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               {/* Divider */}
               <div className="border-t border-border" />

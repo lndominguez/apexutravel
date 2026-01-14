@@ -16,10 +16,9 @@ export function useHotels(params?: {
   page?: number
   limit?: number
   search?: string
-  supplier?: string
   status?: string
   city?: string
-  category?: number
+  stars?: number
 }) {
   const [isCreating, setIsCreating] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
@@ -29,10 +28,9 @@ export function useHotels(params?: {
   if (params?.page) queryParams.set('page', params.page.toString())
   if (params?.limit) queryParams.set('limit', params.limit.toString())
   if (params?.search) queryParams.set('search', params.search)
-  if (params?.supplier) queryParams.set('supplier', params.supplier)
   if (params?.status) queryParams.set('status', params.status)
   if (params?.city) queryParams.set('city', params.city)
-  if (params?.category) queryParams.set('category', params.category.toString())
+  if (params?.stars) queryParams.set('stars', params.stars.toString())
 
   const url = `/api/inventory/hotels?${queryParams.toString()}`
 

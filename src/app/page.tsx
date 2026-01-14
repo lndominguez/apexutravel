@@ -33,7 +33,7 @@ export default function HomePage() {
             }}
           />
           {/* Overlay con gradiente */}
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-950/55 via-indigo-900/50 to-rose-900/55" />
+          <div className="absolute inset-0 bg-gradient-to-br from-[#0c3f5b]/70 via-slate-950/65 to-[#0c3f5b]/75" />
 
           {/* Patrón decorativo */}
           <div className="absolute inset-0 pointer-events-none">
@@ -65,7 +65,7 @@ export default function HomePage() {
         {/* Header minimalista */}
         <div className="container mx-auto relative z-10 pt-6 px-4">
           <div className="flex items-center justify-between">
-            <Logo size="lg" variant="light" showIcon={true} />
+            <Logo size="lg" variant="light" showText={true} />
 
             <div className="flex items-center gap-3">
               {session ? (
@@ -110,7 +110,7 @@ export default function HomePage() {
               {/* Título principal */}
               <h1 className="text-4xl sm:text-5xl md:text-6xl xl:text-7xl font-black text-white leading-tight">
                 Regala viajes que hacen
-                <span className="block text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-orange-200 to-rose-200">
+                <span className="block text-transparent bg-clip-text bg-gradient-to-r from-[#f1c203] via-[#ec9c12] to-[#f1c203]">
                   latir el corazón
                 </span>
               </h1>
@@ -131,14 +131,14 @@ export default function HomePage() {
       </section>
 
       {/* Viaja por el Mundo - Carousel */}
-      <section className="py-24 px-4 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
+      <section className="py-24 px-4 bg-gradient-to-br from-white via-slate-50 to-blue-50/30 overflow-hidden">
         <div className="container mx-auto max-w-7xl">
           <div className="text-center mb-16">
             <p className="text-primary font-bold text-base uppercase tracking-widest mb-4 flex items-center justify-center gap-2">
               <Globe2 size={20} />
               Viaja por el Mundo
             </p>
-            <h2 className="text-5xl md:text-6xl font-black mb-6 bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+            <h2 className="text-5xl md:text-6xl font-black mb-6 text-[#0c3f5b]">
               Destinos que Enamoran
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
@@ -154,12 +154,12 @@ export default function HomePage() {
       <section id="packages" className="py-24 px-4 bg-white">
         <div className="container mx-auto max-w-7xl">
           <div className="text-center mb-16">
-            <p className="text-secondary font-bold text-base uppercase tracking-widest mb-4 flex items-center justify-center gap-2">
+            <p className="text-[#0c3f5b] font-bold text-base uppercase tracking-widest mb-4 flex items-center justify-center gap-2">
               <Package size={20} />
               Paquetes Todo Incluido
             </p>
             <h2 className="text-5xl md:text-6xl font-black mb-6">
-              Ofertas <span className="bg-gradient-to-r from-secondary to-primary bg-clip-text text-transparent">Irresistibles</span>
+              <span className="text-[#0c3f5b]">Ofertas</span> <span className="bg-gradient-to-r from-[#f1c203] via-[#ec9c12] to-[#f1c203] bg-clip-text text-transparent">Irresistibles</span>
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               Paquetes completos con vuelo, hotel, tours y más. Todo lo que necesitas para unas vacaciones perfectas.
@@ -170,7 +170,7 @@ export default function HomePage() {
       </section>
 
       {/* Hoteles de Lujo */}
-      <section className="py-24 px-4 bg-gradient-to-br from-gray-50 to-blue-50">
+      <section className="py-24 px-4 bg-gradient-to-br from-[#f1c203]/5 via-[#ec9c12]/5 to-white">
         <div className="container mx-auto max-w-7xl">
           <div className="text-center mb-16">
             <p className="text-primary font-bold text-base uppercase tracking-widest mb-4 flex items-center justify-center gap-2">
@@ -178,7 +178,7 @@ export default function HomePage() {
               Hoteles Premium
             </p>
             <h2 className="text-5xl md:text-6xl font-black mb-6">
-              Hospedaje de <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Ensueño</span>
+              <span className="text-[#0c3f5b]">Hospedaje de</span> <span className="bg-gradient-to-r from-[#ec9c12] via-[#f1c203] to-[#ec9c12] bg-clip-text text-transparent">Ensueño</span>
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               Los mejores resorts y hoteles boutique. Lujo, confort y experiencias inolvidables.
@@ -190,10 +190,10 @@ export default function HomePage() {
 
 
       {/* Why Choose Us */}
-      <section className="py-20 px-4 bg-gradient-to-br from-primary/5 to-secondary/5">
+      <section className="py-20 px-4 bg-gradient-to-br from-[#0c3f5b]/5 to-slate-50">
         <div className="container mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-[#0c3f5b]">
               ¿Por Qué Elegirnos?
             </h2>
             <p className="text-xl text-gray-600">
@@ -203,8 +203,8 @@ export default function HomePage() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             <div className="text-center">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Shield className="text-primary" size={32} />
+              <div className="w-16 h-16 bg-[#0c3f5b]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Shield className="text-[#0c3f5b]" size={32} />
               </div>
               <h3 className="text-xl font-bold mb-2">Pago Seguro</h3>
               <p className="text-gray-600">
@@ -213,8 +213,8 @@ export default function HomePage() {
             </div>
 
             <div className="text-center">
-              <div className="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <HeartHandshake className="text-secondary" size={32} />
+              <div className="w-16 h-16 bg-[#ec9c12]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <HeartHandshake className="text-[#ec9c12]" size={32} />
               </div>
               <h3 className="text-xl font-bold mb-2">Mejor Precio</h3>
               <p className="text-gray-600">
@@ -223,8 +223,8 @@ export default function HomePage() {
             </div>
 
             <div className="text-center">
-              <div className="w-16 h-16 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Award className="text-success" size={32} />
+              <div className="w-16 h-16 bg-[#0c3f5b]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Award className="text-[#0c3f5b]" size={32} />
               </div>
               <h3 className="text-xl font-bold mb-2">Experiencia</h3>
               <p className="text-gray-600">
@@ -233,8 +233,8 @@ export default function HomePage() {
             </div>
 
             <div className="text-center">
-              <div className="w-16 h-16 bg-warning/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Sparkles className="text-warning" size={32} />
+              <div className="w-16 h-16 bg-[#f1c203]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Sparkles className="text-[#f1c203]" size={32} />
               </div>
               <h3 className="text-xl font-bold mb-2">Atención 24/7</h3>
               <p className="text-gray-600">
@@ -246,7 +246,7 @@ export default function HomePage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-4 bg-gradient-to-r from-primary to-secondary text-white">
+      <section className="py-20 px-4 bg-gradient-to-br from-[#0c3f5b] via-[#0c3f5b]/95 to-slate-900 text-white">
         <div className="container mx-auto text-center">
           <h2 className="text-4xl md:text-5xl font-bold mb-6">
             ¿Listo para tu Próxima Aventura?
@@ -259,7 +259,7 @@ export default function HomePage() {
               as={Link}
               href="/auth/register"
               size="lg"
-              className="bg-white text-primary font-semibold"
+              className="bg-[#f1c203] text-[#0c3f5b] hover:bg-[#ec9c12] font-semibold"
             >
               Crear Cuenta Gratis
             </Button>
@@ -277,7 +277,7 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12 px-4">
+      <footer className="bg-gradient-to-br from-slate-900 via-[#0c3f5b] to-slate-950 text-white py-12 px-4">
         <div className="container mx-auto">
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
@@ -320,7 +320,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="border-t border-gray-800 pt-8 text-center text-sm text-gray-400">
+          <div className="border-t border-[#0c3f5b]/50 pt-8 text-center text-sm text-gray-400">
             <p>&copy; 2024 TravelCRM. Todos los derechos reservados.</p>
           </div>
         </div>

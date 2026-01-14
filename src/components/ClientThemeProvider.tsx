@@ -9,7 +9,8 @@ export function ClientThemeProvider({ children }: { children: React.ReactNode })
       try {
         // Obtener preferencias guardadas
         const savedTheme = localStorage.getItem('theme') || 'light'
-        const savedColorScheme = localStorage.getItem('colorScheme') || 'blue'
+        // ColorScheme siempre ORANGE (ApexuCode)
+        const colorScheme = 'orange'
         
         // Aplicar tema
         if (savedTheme === 'dark') {
@@ -18,14 +19,14 @@ export function ClientThemeProvider({ children }: { children: React.ReactNode })
           document.documentElement.classList.remove('dark')
         }
         
-        // Aplicar esquema de color
-        document.documentElement.setAttribute('data-color', savedColorScheme)
+        // Aplicar esquema de color - Siempre ORANGE
+        document.documentElement.setAttribute('data-color', 'orange')
         
         // Marcar como listo
         document.documentElement.setAttribute('data-theme-ready', 'true')
       } catch (e) {
         // Fallback en caso de error
-        document.documentElement.setAttribute('data-color', 'blue')
+        document.documentElement.setAttribute('data-color', 'orange')
         document.documentElement.setAttribute('data-theme-ready', 'true')
       }
     }

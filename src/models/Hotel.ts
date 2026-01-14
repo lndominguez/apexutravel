@@ -1,19 +1,37 @@
 import mongoose, { Schema, Document } from 'mongoose'
 
-export interface IHotel extends Document {
-  // Relación con proveedor
-  supplier: mongoose.Types.ObjectId
+// Enums para tipos de habitación
+export type RoomCategory = 'standard' | 'superior' | 'deluxe' | 'junior_suite' | 'suite' | 'luxury' | 'presidential'
+export type RoomOccupancy = 'single' | 'double' | 'triple' | 'quad'
+export type RoomViewType = 'ocean_view' | 'city_view' | 'garden_view' | 'pool_view' | 'mountain_view' | 'balcony' | 'no_view'
+
+export interface IRoomType {
+  name: string // ej: "Habitación Deluxe con Vista al Mar"
+  description: string
   
-  // Información básica
+  // Características que influyen en precio (pero NO hay precio aquí)
+  category: RoomCategory // Standard, Deluxe, Suite, etc.
+  occupancy: RoomOccupancy[] // Array porque un cuarto puede ser simple, doble y triple al mismo tiempo
+  viewType: RoomViewType[] // Array porque un cuarto puede tener múltiples vistas/características
+  
+  // Amenidades de la habitación
+  amenities: string[]
+  
+  // Imágenes de la habitación
+  images?: string[]
+}
+
+export interface IHotel extends Document {
+  // Información básica del hotel (CATÁLOGO - SIN PRECIOS)
   name: string
-  chain?: string // Cadena hotelera si aplica
-  category: number // Estrellas 1-5
+  chain?: string // Cadena hotelera si aplica (ej: "Marriott", "Hilton")
+  stars: number // Categoría de estrellas: 1-5
   
   // Ubicación
   location: {
     address: string
     city: string
-    state: string
+    state?: string
     country: string
     postalCode?: string
     coordinates?: {
@@ -28,74 +46,33 @@ export interface IHotel extends Document {
   email: string
   website?: string
   
-  // Descripción y amenidades
+  // Descripción y amenidades del hotel
   description: string
-  amenities: string[] // ['pool', 'spa', 'gym', 'restaurant', 'wifi', 'parking', 'beach_access']
+  amenities: string[] // ['pool', 'spa', 'gym', 'restaurant', 'wifi', 'parking', 'beach_access', 'bar', 'room_service']
   
-  // Tipos de habitación con precios
-  roomTypes: Array<{
-    name: string // ej: "Habitación Estándar", "Suite Junior"
-    description: string
-    capacity: {
-      adults: number
-      children: number
-    }
-    size: number // m²
-    bedType: string // ej: "1 King", "2 Queen"
-    amenities: string[]
-    
-    // Disponibilidad
-    totalRooms: number
-    availableRooms: number
-    
-    // Precios por plan
-    plans: Array<{
-      type: 'room_only' | 'breakfast' | 'half_board' | 'full_board' | 'all_inclusive'
-      
-      // Precio del proveedor (COSTO)
-      costPerNight: number
-      costCurrency: string
-      
-      // Nuestro precio (VENTA)
-      markup: number // % de ganancia
-      sellingPricePerNight: number
-      sellingCurrency: string
-      
-      // Restricciones
-      minNights?: number
-      maxNights?: number
-    }>
-    
-    // Imágenes
-    images?: string[]
-  }>
+  // Fotos principales del hotel
+  photos: string[]
   
-  // Políticas
-  checkIn: string // ej: "15:00"
-  checkOut: string // ej: "12:00"
-  cancellationPolicy: string
-  childPolicy?: string
-  petPolicy?: string
+  // Tipos de habitación disponibles (SIN PRECIOS)
+  roomTypes: IRoomType[]
   
-  // Calificación
-  rating?: number // 1-10
-  reviews?: number
+  // Políticas del hotel
+  policies: {
+    checkIn: string // ej: "15:00"
+    checkOut: string // ej: "12:00"
+    cancellation?: string
+    children?: string
+    pets?: string
+  }
+  
+  // Información adicional
+  rating?: number // Calificación promedio 1-10
+  reviews?: number // Número de reseñas
+  tags?: string[] // ['beach', 'family', 'romantic', 'business', 'luxury', 'budget']
+  notes?: string // Notas internas
   
   // Estado
-  status: 'active' | 'inactive' | 'maintenance'
-  
-  // Temporadas y disponibilidad
-  seasons?: Array<{
-    name: string // ej: "Temporada Alta"
-    startDate: Date
-    endDate: Date
-    priceMultiplier: number // 1.2 = 20% más caro
-  }>
-  
-  // Metadata
-  images?: string[]
-  notes?: string
-  tags?: string[] // ['beach', 'family', 'romantic', 'business']
+  status: 'active' | 'inactive'
   
   // Auditoría
   createdBy: mongoose.Types.ObjectId
@@ -105,12 +82,12 @@ export interface IHotel extends Document {
 }
 
 const HotelSchema = new Schema<IHotel>({
-  supplier: { type: Schema.Types.ObjectId, ref: 'Supplier', required: true },
-  
+  // Información básica
   name: { type: String, required: true, index: true },
   chain: String,
-  category: { type: Number, required: true, min: 1, max: 5 },
+  stars: { type: Number, required: true, min: 1, max: 5 },
   
+  // Ubicación
   location: {
     address: { type: String, required: true },
     city: { type: String, required: true, index: true },
@@ -124,75 +101,69 @@ const HotelSchema = new Schema<IHotel>({
     zone: String
   },
   
+  // Contacto
   phone: { type: String, required: true },
   email: { type: String, required: true },
   website: String,
   
+  // Descripción y amenidades
   description: { type: String, required: true },
   amenities: [String],
   
+  // Fotos principales del hotel
+  photos: { type: [String], default: [] },
+  
+  // Tipos de habitación (SIN PRECIOS)
   roomTypes: [{
     name: { type: String, required: true },
-    description: String,
-    capacity: {
-      adults: { type: Number, required: true },
-      children: { type: Number, default: 0 }
+    description: { type: String, required: true },
+    
+    // Características que influyen en precio
+    category: {
+      type: String,
+      required: true,
+      enum: ['standard', 'superior', 'deluxe', 'junior_suite', 'suite', 'luxury', 'presidential']
     },
-    size: Number,
-    bedType: String,
-    amenities: [String],
-    
-    totalRooms: { type: Number, required: true },
-    availableRooms: { type: Number, required: true },
-    
-    plans: [{
-      type: {
-        type: String,
-        required: true,
-        enum: ['room_only', 'breakfast', 'half_board', 'full_board', 'all_inclusive']
-      },
-      
-      costPerNight: { type: Number, required: true },
-      costCurrency: { type: String, default: 'USD' },
-      
-      markup: { type: Number, required: true },
-      sellingPricePerNight: { type: Number, required: true },
-      sellingCurrency: { type: String, default: 'USD' },
-      
-      minNights: Number,
-      maxNights: Number
+    occupancy: [{
+      type: String,
+      enum: ['single', 'double', 'triple', 'quad']
+    }],
+    viewType: [{
+      type: String,
+      enum: ['ocean_view', 'city_view', 'garden_view', 'pool_view', 'mountain_view', 'balcony', 'no_view']
     }],
     
+    // Amenidades de la habitación
+    amenities: [String],
+    
+    // Imágenes de la habitación
     images: [String]
   }],
   
-  checkIn: { type: String, required: true },
-  checkOut: { type: String, required: true },
-  cancellationPolicy: String,
-  childPolicy: String,
-  petPolicy: String,
+  // Políticas
+  policies: {
+    checkIn: { type: String, required: true },
+    checkOut: { type: String, required: true },
+    cancellation: String,
+    children: String,
+    pets: String
+  },
   
+  // Información adicional
   rating: { type: Number, min: 1, max: 10 },
   reviews: Number,
+  tags: [String],
+  notes: String,
   
+  // Estado
   status: {
     type: String,
     required: true,
-    enum: ['active', 'inactive', 'maintenance'],
+    enum: ['active', 'inactive'],
     default: 'active'
   },
   
-  seasons: [{
-    name: String,
-    startDate: Date,
-    endDate: Date,
-    priceMultiplier: { type: Number, default: 1 }
-  }],
-  
-  images: [String],
-  notes: String,
-  tags: [String],
-  
+  // Auditoría
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   updatedBy: { type: Schema.Types.ObjectId, ref: 'User' }
 }, {
@@ -202,7 +173,7 @@ const HotelSchema = new Schema<IHotel>({
 // Índices para búsquedas
 HotelSchema.index({ name: 'text', description: 'text' })
 HotelSchema.index({ 'location.city': 1, 'location.country': 1 })
-HotelSchema.index({ supplier: 1, status: 1 })
-HotelSchema.index({ category: 1 })
+HotelSchema.index({ status: 1 })
+HotelSchema.index({ stars: 1 })
 
 export default mongoose.models.Hotel || mongoose.model<IHotel>('Hotel', HotelSchema)

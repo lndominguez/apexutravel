@@ -204,7 +204,7 @@ export default function DashboardPage() {
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
             <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
               <div className="space-y-2">
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                <h1 className="text-4xl font-bold text-[#0c3f5b]">
                   ¡Bienvenido, {user?.firstName || 'Usuario'}!
                 </h1>
                 <p className="text-lg text-muted-foreground">

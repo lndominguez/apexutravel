@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useNotification } from '@/hooks/useNotification'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { 
@@ -29,6 +30,7 @@ import { ProfileSkeleton } from '@/components/ContentSkeleton'
 export default function ProfilePage() {
   const { user, isLoading, updateProfile, refreshSession, isAuthenticated } = useAuth()
   const router = useRouter()
+  const notification = useNotification()
   
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState<any>({})
@@ -86,9 +88,10 @@ export default function ProfilePage() {
       
       setIsEditing(false)
       console.log('✅ Profile updated and data invalidated')
+      notification.success('Perfil actualizado', 'Los cambios se guardaron correctamente')
     } catch (error) {
       console.error('Error updating profile:', error)
-      alert('Error al actualizar perfil')
+      notification.error('Error al actualizar', 'No se pudo actualizar el perfil')
     }
   }
 
