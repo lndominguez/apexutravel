@@ -97,6 +97,13 @@ function CheckoutContent() {
   
   // Calcular precio total
   const calculateTotal = () => {
+    // Si viene totalPrice desde el booking, usarlo directamente
+    // Esto asegura que el precio sea exactamente el mismo que vio el usuario
+    if (totalPrice && totalPrice > 0) {
+      return totalPrice
+    }
+    
+    // Fallback: calcular si no viene totalPrice (compatibilidad con flujos antiguos)
     if (!item) return 0
     
     if (type === 'package') {
@@ -104,11 +111,6 @@ function CheckoutContent() {
       const childPrice = ((item.pricing?.sellingPricePerPerson?.child || item.pricing?.sellingPricePerPerson?.double * 0.7) || 0) * children
       const infantPrice = (((item.pricing?.sellingPricePerPerson?.child || 0) * 0.5) || 0) * infants
       return adultPrice + childPrice + infantPrice
-    }
-    
-    if (type === 'hotel') {
-      // Para hoteles, usar el precio total calculado que viene de los parámetros
-      return totalPrice
     }
     
     return 0

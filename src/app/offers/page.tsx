@@ -27,7 +27,7 @@ import UnifiedOfferModal from '@/components/offers/UnifiedOfferModal'
 function OffersContent() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState('') // Filtro por tipo
+  const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [selectedOffer, setSelectedOffer] = useState<any>(null)
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure()
@@ -48,7 +48,6 @@ function OffersContent() {
     status: statusFilter as any
   })
   
-  // Filtrar por tipo en el cliente
   const filteredOffers = typeFilter 
     ? offers?.filter((offer: any) => offer.type === typeFilter)
     : offers
@@ -174,14 +173,6 @@ function OffersContent() {
   }
 
   const handleDelete = async (offer: any) => {
-    if (offer.status === 'published') {
-      notification.error(
-        'No se puede eliminar',
-        'Para eliminar una oferta publicada primero debes archivarla'
-      )
-      return
-    }
-
     const confirmed = await confirm({
       title: 'Eliminar oferta',
       message: `¿Eliminar permanentemente "${offer.name}"? Esta acción no se puede deshacer.`,
@@ -192,8 +183,16 @@ function OffersContent() {
     if (!confirmed) return
 
     try {
-      await deleteOffer(offer._id)
-      notification.success('Oferta eliminada', 'La oferta se eliminó correctamente')
+      const response = await fetch(`/api/offers/${offer.type === 'package' ? 'packages' : offer.type === 'hotel' ? 'hotels' : 'flights'}/${offer._id}?permanent=true`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Error al eliminar')
+      }
+
+      notification.success('Oferta eliminada', 'La oferta se eliminó permanentemente')
       mutate()
     } catch (error: any) {
       notification.error('Error al eliminar', error.message || 'No se pudo eliminar la oferta')
@@ -209,7 +208,6 @@ function OffersContent() {
     <div className="space-y-6">
       <ConfirmDialog />
 
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -225,7 +223,6 @@ function OffersContent() {
         </Button>
       </div>
 
-      {/* Filtros */}
       <Card>
         <CardBody>
           <div className="flex items-center gap-3">
@@ -267,7 +264,6 @@ function OffersContent() {
         </CardBody>
       </Card>
 
-      {/* Lista de ofertas */}
       {isLoading ? (
         <div className="text-center py-12">
           <p className="text-default-500">Cargando ofertas...</p>
@@ -285,115 +281,159 @@ function OffersContent() {
           </CardBody>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredOffers.map((offer: any) => (
-            <Card key={offer._id} className="hover:shadow-lg transition-shadow">
-              <CardBody className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 bg-primary/10 rounded-lg">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {filteredOffers.map((offer: any) => {
+            const coverImage = offer.coverPhoto || (() => {
+              if (offer.items && offer.items.length > 0) {
+                for (const item of offer.items) {
+                  if (item.inventoryId?.resource?.photos && item.inventoryId.resource.photos.length > 0) {
+                    return item.inventoryId.resource.photos[0]
+                  }
+                }
+              }
+              return null
+            })()
+
+            const salePrice = offer.pricing?.finalPrice || (() => {
+              if (!offer.items || offer.items.length === 0) return null
+              
+              let totalBase = 0
+              for (const item of offer.items) {
+                if (item.inventoryId?.rooms && item.inventoryId.rooms.length > 0) {
+                  let cheapest = null
+                  for (const room of item.inventoryId.rooms) {
+                    if (room.capacityPrices?.double?.adult) {
+                      const price = room.capacityPrices.double.adult
+                      if (cheapest === null || price < cheapest) {
+                        cheapest = price
+                      }
+                    }
+                  }
+                  if (cheapest) totalBase += cheapest
+                }
+              }
+
+              if (totalBase === 0) return null
+
+              const markup = offer.markup || { type: 'percentage', value: 10 }
+              if (markup.type === 'percentage') {
+                return totalBase * (1 + markup.value / 100)
+              } else {
+                return totalBase + markup.value
+              }
+            })()
+
+            return (
+              <Card key={offer._id} className="group hover:shadow-lg transition-shadow">
+                <div 
+                  className="relative h-32 bg-gradient-to-br from-primary/10 to-primary/5 overflow-hidden cursor-pointer"
+                  onClick={() => handleEdit(offer)}
+                >
+                  {coverImage ? (
+                    <img
+                      src={coverImage}
+                      alt={offer.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-default-300">
                       <TypeIcon type={offer.type} />
-                    </div>
-                    <div>
-                      <Chip size="sm" variant="flat" color="primary">
-                        {typeLabels[offer.type] || offer.type}
-                      </Chip>
-                    </div>
-                  </div>
-                  <Dropdown>
-                    <DropdownTrigger>
-                      <Button isIconOnly size="sm" variant="light">
-                        <MoreVertical size={18} />
-                      </Button>
-                    </DropdownTrigger>
-                    <DropdownMenu>
-                      <DropdownItem
-                        key="edit"
-                        startContent={<Edit size={16} />}
-                        onPress={() => handleEdit(offer)}
-                      >
-                        Editar
-                      </DropdownItem>
-                      {offer.status === 'draft' ? (
-                        <DropdownItem
-                          key="publish"
-                          color="success"
-                          onPress={() => handlePublish(offer)}
-                        >
-                          Publicar
-                        </DropdownItem>
-                      ) : null}
-                      {offer.status === 'published' ? (
-                        <DropdownItem
-                          key="unpublish"
-                          onPress={() => handleUnpublish(offer)}
-                        >
-                          Despublicar
-                        </DropdownItem>
-                      ) : null}
-                      {offer.status !== 'archived' ? (
-                        <DropdownItem
-                          key="archive"
-                          onPress={() => handleArchive(offer)}
-                        >
-                          Archivar
-                        </DropdownItem>
-                      ) : null}
-                      <DropdownItem
-                        key="delete"
-                        color="danger"
-                        startContent={<Trash2 size={16} />}
-                        onPress={() => handleDelete(offer)}
-                      >
-                        Eliminar
-                      </DropdownItem>
-                    </DropdownMenu>
-                  </Dropdown>
-                </div>
-
-                <h3 className="font-semibold text-lg mb-2">{offer.name}</h3>
-                
-                {offer.description && (
-                  <p className="text-sm text-default-600 mb-3 line-clamp-2">
-                    {offer.description}
-                  </p>
-                )}
-
-                <div className="space-y-2 mb-3">
-                  {offer.items && offer.items.length > 0 && (
-                    <div className="flex items-center gap-2 text-sm text-default-500">
-                      <Package size={14} />
-                      <span>{offer.items.length} componente{offer.items.length !== 1 ? 's' : ''}</span>
                     </div>
                   )}
                   
-                  {offer.pricing?.finalPrice && (
-                    <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                      <DollarSign size={14} />
-                      <span>${offer.pricing.finalPrice.toLocaleString()}</span>
-                    </div>
-                  )}
+                  <div className="absolute top-2 left-2">
+                    <Chip size="sm" className="text-xs bg-white/90 backdrop-blur-sm">
+                      {typeLabels[offer.type]}
+                    </Chip>
+                  </div>
+                  <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
+                    <Dropdown>
+                      <DropdownTrigger>
+                        <Button isIconOnly size="sm" variant="flat" className="min-w-6 w-6 h-6 bg-white/90 backdrop-blur-sm">
+                          <MoreVertical size={14} />
+                        </Button>
+                      </DropdownTrigger>
+                      <DropdownMenu>
+                        <DropdownItem
+                          key="edit"
+                          startContent={<Edit size={14} />}
+                          onPress={() => handleEdit(offer)}
+                        >
+                          Editar
+                        </DropdownItem>
+                        {offer.status === 'draft' ? (
+                          <DropdownItem
+                            key="publish"
+                            color="success"
+                            onPress={() => handlePublish(offer)}
+                          >
+                            Publicar
+                          </DropdownItem>
+                        ) : null}
+                        {offer.status === 'published' ? (
+                          <DropdownItem
+                            key="unpublish"
+                            onPress={() => handleUnpublish(offer)}
+                          >
+                            Despublicar
+                          </DropdownItem>
+                        ) : null}
+                        {offer.status === 'published' ? (
+                          <DropdownItem
+                            key="archive"
+                            onPress={() => handleArchive(offer)}
+                          >
+                            Archivar
+                          </DropdownItem>
+                        ) : null}
+                        {offer.status !== 'published' ? (
+                          <DropdownItem
+                            key="delete"
+                            color="danger"
+                            startContent={<Trash2 size={14} />}
+                            onPress={() => handleDelete(offer)}
+                          >
+                            Eliminar
+                          </DropdownItem>
+                        ) : null}
+                      </DropdownMenu>
+                    </Dropdown>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-3 border-t border-default-200">
-                  <Chip
-                    size="sm"
-                    color={statusColorMap[offer.status]}
-                    variant="flat"
-                  >
-                    {statusLabels[offer.status]}
-                  </Chip>
-                  <span className="text-xs text-default-400">
-                    {offer.code}
-                  </span>
-                </div>
-              </CardBody>
-            </Card>
-          ))}
+                <CardBody className="p-3 cursor-pointer" onClick={() => handleEdit(offer)}>
+                  <h3 className="font-semibold text-sm mb-1 line-clamp-1 group-hover:text-primary transition-colors">
+                    {offer.name}
+                  </h3>
+                  
+                  {salePrice && (
+                    <div className="flex items-baseline gap-1 mb-2">
+                      <span className="text-lg font-bold text-success-600">
+                        ${salePrice.toFixed(0)}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-xs">
+                    <Chip
+                      size="sm"
+                      color={statusColorMap[offer.status]}
+                      variant="flat"
+                      className="text-xs"
+                    >
+                      {statusLabels[offer.status]}
+                    </Chip>
+                    <span className="text-default-400">
+                      {offer.code}
+                    </span>
+                  </div>
+                </CardBody>
+              </Card>
+            )
+          })}
         </div>
       )}
 
-      {/* Paginación */}
       {pagination && pagination.pages > 1 && (
         <div className="flex justify-center mt-6">
           <Pagination
@@ -404,7 +444,6 @@ function OffersContent() {
         </div>
       )}
 
-      {/* Modal unificado */}
       <UnifiedOfferModal
         isOpen={isModalOpen}
         onClose={handleModalClose}

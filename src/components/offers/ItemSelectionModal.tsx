@@ -50,7 +50,7 @@ export default function ItemSelectionModal({
     limit: 100
   })
 
-  // Filtrar por búsqueda y destino
+  // Filtrar por búsqueda, destino y pricingMode
   const filteredItems = items?.filter((item: any) => {
     const searchLower = searchTerm.toLowerCase()
     const destinationLower = destinationFilter.toLowerCase()
@@ -61,7 +61,19 @@ export default function ItemSelectionModal({
     const matchesSearch = !searchTerm || name.includes(searchLower) || city.includes(searchLower) || country.includes(searchLower)
     const matchesDestination = !destinationFilter || city.includes(destinationLower) || country.includes(destinationLower)
     
-    return matchesSearch && matchesDestination
+    // Filtrar por pricingMode según el tipo de oferta
+    let matchesPricingMode = true
+    if (selectedItemType === 'Hotel') {
+      if (offerType === 'package') {
+        // Para paquetes: solo mostrar hoteles con pricingMode 'package'
+        matchesPricingMode = item.pricingMode === 'package'
+      } else if (offerType === 'hotel') {
+        // Para hoteles individuales: solo mostrar hoteles con pricingMode 'per_night'
+        matchesPricingMode = item.pricingMode === 'per_night'
+      }
+    }
+    
+    return matchesSearch && matchesDestination && matchesPricingMode
   }) || []
 
   // Reset al cambiar tipo
@@ -119,27 +131,29 @@ export default function ItemSelectionModal({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      size="3xl"
+      size="4xl"
       scrollBehavior="inside"
+      classNames={{
+        base: "max-h-[90vh]",
+        body: "py-6"
+      }}
     >
       <ModalContent>
-        <ModalHeader>
-          <div>
-            <h3 className="text-xl font-bold">
-              {offerType === 'hotel' && 'Seleccionar Hotel'}
-              {offerType === 'flight' && 'Seleccionar Vuelo'}
-              {offerType === 'package' && 'Seleccionar Item para Paquete'}
-            </h3>
-            <p className="text-sm text-default-500 font-normal mt-1">
-              {offerType === 'hotel' && 'Hoteles disponibles en inventario'}
-              {offerType === 'flight' && 'Vuelos disponibles en inventario'}
-              {offerType === 'package' && 'Selecciona hoteles, vuelos, transportes o actividades'}
-            </p>
-          </div>
+        <ModalHeader className="flex flex-col gap-1 pb-4 border-b border-default-200">
+          <h3 className="text-2xl font-bold text-default-900">
+            {offerType === 'hotel' && '🏨 Seleccionar Hotel'}
+            {offerType === 'flight' && '✈️ Seleccionar Vuelo'}
+            {offerType === 'package' && '📦 Seleccionar Item para Paquete'}
+          </h3>
+          <p className="text-sm text-default-500 font-normal">
+            {offerType === 'hotel' && 'Hoteles disponibles en inventario para ofertas individuales'}
+            {offerType === 'flight' && 'Vuelos disponibles en inventario'}
+            {offerType === 'package' && 'Selecciona hoteles, vuelos, transportes o actividades para tu paquete'}
+          </p>
         </ModalHeader>
 
-        <ModalBody>
-          <div className="space-y-4">
+        <ModalBody className="px-6 py-6">
+          <div className="space-y-6">
             {/* Filtros */}
             <div className="grid grid-cols-2 gap-3">
               <Input
@@ -217,64 +231,128 @@ export default function ItemSelectionModal({
 
             {/* Lista de items */}
             {isLoading ? (
-              <div className="flex justify-center py-12">
-                <Spinner size="lg" />
+              <div className="mt-3 flex justify-center py-16">
+                <Spinner size="lg" color="primary" />
               </div>
             ) : filteredItems.length === 0 ? (
-              <div className="text-center py-12 bg-default-50 rounded-lg">
-                <p className="text-default-500">
+              <div className="mt-3 text-center py-16 bg-gradient-to-br from-default-50 to-default-100 rounded-xl border-2 border-dashed border-default-300">
+                <div className="w-16 h-16 mx-auto mb-4 bg-default-200 rounded-full flex items-center justify-center">
+                  {selectedItemType === 'Hotel' && <Hotel size={32} className="text-default-400" />}
+                  {selectedItemType === 'Flight' && <Plane size={32} className="text-default-400" />}
+                  {selectedItemType === 'Transport' && <Bus size={32} className="text-default-400" />}
+                  {selectedItemType === 'Activity' && <MapPin size={32} className="text-default-400" />}
+                </div>
+                <p className="text-default-500 font-medium">
                   {searchTerm ? 'No se encontraron resultados' : 'No hay items disponibles'}
+                </p>
+                <p className="text-xs text-default-400 mt-1">
+                  {searchTerm ? 'Intenta con otros términos de búsqueda' : 'Agrega items al inventario primero'}
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto">
+              <div className="mt-3 grid grid-cols-2 gap-4 max-h-[500px] overflow-y-auto p-2 pb-6 pr-3 custom-scrollbar">
                 {filteredItems.map((item: any) => (
                   <Card
                     key={item._id}
                     isPressable
                     onPress={() => handleSelect(item)}
-                    className="hover:border-primary transition-colors"
+                    className="hover:border-primary hover:shadow-lg transition-all duration-200 border-2 border-transparent"
+                    shadow="sm"
                   >
-                    <CardBody>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            {selectedItemType === 'Hotel' && <Hotel size={18} className="text-primary" />}
-                            {selectedItemType === 'Flight' && <Plane size={18} className="text-primary" />}
-                            {selectedItemType === 'Transport' && <Bus size={18} className="text-primary" />}
-                            {selectedItemType === 'Activity' && <MapPin size={18} className="text-primary" />}
-                            <h4 className="font-semibold">
-                              {item.resource?.name || item.inventoryName}
-                            </h4>
+                    <CardBody className="p-0">
+                      <div className="flex gap-3 p-3">
+                        {/* Imagen miniatura (solo para hoteles) */}
+                        {selectedItemType === 'Hotel' && (
+                          <div className="flex-shrink-0">
+                            <div className="w-20 h-20 rounded-lg overflow-hidden bg-gradient-to-br from-primary/10 to-primary/5 border border-default-200">
+                              {item.resource?.coverPhoto ? (
+                                <img
+                                  src={item.resource.coverPhoto}
+                                  alt={item.resource?.name || item.inventoryName}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <Hotel size={32} className="text-default-300" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Contenido */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                {selectedItemType === 'Hotel' && <Hotel size={14} className="text-primary flex-shrink-0" />}
+                                {selectedItemType === 'Flight' && <Plane size={14} className="text-primary flex-shrink-0" />}
+                                {selectedItemType === 'Transport' && <Bus size={14} className="text-primary flex-shrink-0" />}
+                                {selectedItemType === 'Activity' && <MapPin size={14} className="text-primary flex-shrink-0" />}
+                                <h4 className="font-bold text-sm text-default-900 truncate">
+                                  {item.resource?.name || item.inventoryName}
+                                </h4>
+                              </div>
+                              <p className="text-xs text-default-400 truncate">
+                                {item.inventoryName}
+                              </p>
+                            </div>
+                            
+                            <div className="flex-shrink-0">
+                              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary transition-colors">
+                                <svg className="w-3 h-3 text-primary group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </div>
+                            </div>
                           </div>
 
                           {/* Info específica según tipo */}
                           {selectedItemType === 'Hotel' && (
-                            <div className="space-y-1">
+                            <div className="space-y-1.5">
                               {item.resource?.location && (
-                                <p className="text-sm text-default-600 flex items-center gap-1">
-                                  <MapPin size={14} />
-                                  {item.resource.location.city}, {item.resource.location.country}
-                                </p>
+                                <div className="flex items-center gap-1 text-xs text-default-600">
+                                  <MapPin size={12} className="flex-shrink-0" />
+                                  <span className="truncate">
+                                    {item.resource.location.city}, {item.resource.location.country}
+                                  </span>
+                                </div>
                               )}
+                              
                               {item.resource?.stars && (
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-0.5">
                                   {[...Array(5)].map((_, i) => (
                                     <Star
                                       key={i}
-                                      size={12}
-                                      className={i < item.resource.stars ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}
+                                      size={11}
+                                      className={i < item.resource.stars ? 'fill-amber-400 text-amber-400' : 'fill-gray-200 text-gray-200'}
                                     />
                                   ))}
                                 </div>
                               )}
-                              <div className="flex items-center gap-2 mt-2">
-                                <Chip size="sm" variant="flat" color="primary">
-                                  {item.pricingMode === 'package' ? 'Paquete' : 'Por Noche'}
+                              
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <Chip 
+                                  size="sm" 
+                                  variant="flat" 
+                                  color={item.pricingMode === 'package' ? 'secondary' : 'primary'}
+                                  className="text-xs h-5"
+                                >
+                                  {item.pricingMode === 'package' ? '📦' : '🌙'}
                                 </Chip>
-                                {item.rooms && (
-                                  <Chip size="sm" variant="flat">
-                                    {item.rooms.length} habitaciones
+                                {item.rooms && item.rooms.length > 0 && (
+                                  <Chip size="sm" variant="flat" color="default" className="text-xs h-5">
+                                    {item.rooms.length} hab.
+                                  </Chip>
+                                )}
+                                {item.status && (
+                                  <Chip 
+                                    size="sm" 
+                                    variant="dot" 
+                                    color={item.status === 'active' ? 'success' : 'warning'}
+                                    className="text-xs h-5"
+                                  >
+                                    {item.status === 'active' ? 'Activo' : item.status}
                                   </Chip>
                                 )}
                               </div>
@@ -282,20 +360,27 @@ export default function ItemSelectionModal({
                           )}
 
                           {selectedItemType === 'Flight' && item.resource?.route && (
-                            <p className="text-sm text-default-600">
-                              {item.resource.route.from} → {item.resource.route.to}
-                            </p>
+                            <div className="flex items-center gap-2 text-sm text-default-600 mt-2">
+                              <Plane size={14} />
+                              <span className="font-medium">{item.resource.route.from}</span>
+                              <span>→</span>
+                              <span className="font-medium">{item.resource.route.to}</span>
+                            </div>
                           )}
 
-                          <p className="text-xs text-default-400 mt-2">
-                            Inventario: {item.inventoryName}
-                          </p>
-                        </div>
+                          {selectedItemType === 'Transport' && (
+                            <div className="flex items-center gap-2 text-sm text-default-600 mt-2">
+                              <Bus size={14} />
+                              <span>Transporte disponible</span>
+                            </div>
+                          )}
 
-                        <div className="flex items-center">
-                          <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
+                          {selectedItemType === 'Activity' && (
+                            <div className="flex items-center gap-2 text-sm text-default-600 mt-2">
+                              <MapPin size={14} />
+                              <span>Actividad disponible</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </CardBody>

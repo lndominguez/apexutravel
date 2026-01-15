@@ -116,41 +116,7 @@ const navigationSections: NavigationSection[] = [
         icon: Luggage,
         current: false,
         badge: null,
-        description: 'Lo que ve el público',
-        subItems: [
-          {
-            name: 'Panel de Ofertas',
-            href: '/offers/dashboard',
-            icon: LayoutDashboard,
-            current: false,
-            badge: null,
-            description: 'Dashboard de ofertas'
-          },
-          {
-            name: 'Paquetes Turísticos',
-            href: '/offers/packages',
-            icon: Luggage,
-            current: false,
-            badge: null,
-            description: 'Ofertas combinadas de inventario'
-          },
-          {
-            name: 'Vuelos a Publicar',
-            href: '/offers/flights',
-            icon: Plane,
-            current: false,
-            badge: null,
-            description: 'Vuelos disponibles para clientes'
-          },
-          {
-            name: 'Hoteles a Publicar',
-            href: '/offers/hotels',
-            icon: Hotel,
-            current: false,
-            badge: null,
-            description: 'Hoteles disponibles para clientes'
-          }
-        ]
+        description: 'Gestión de ofertas públicas'
       }
     ]
   },

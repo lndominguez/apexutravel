@@ -26,18 +26,26 @@ export async function GET(
       query.slug = slug
     }
     
-    // Obtener la oferta (no asumimos que inventoryId referencia siempre el mismo modelo).
-    const hotel = await Offer.findOne(query).lean()
+    const hotelOffer: any = await Offer.findOne(query).lean()
     
-    if (!hotel) {
+    if (!hotelOffer) {
       return NextResponse.json({ success: false, error: 'Hotel no encontrado' }, { status: 404 })
     }
+
+    // Aplicar markup helper
+    const applyMarkup = (basePrice: number, markup: any) => {
+      if (!markup || !markup.value) return basePrice
+      if (markup.type === 'percentage') {
+        return basePrice + (basePrice * markup.value / 100)
+      }
+      return basePrice + markup.value
+    }
     
-    // Enriquecer selectedRooms con fotos del hotel resource
-    if (hotel.items && hotel.items.length > 0) {
+    // RECONSTRUIR selectedRooms desde InventoryHotel aplicando markup (igual que packages)
+    if (hotelOffer.items && hotelOffer.items.length > 0) {
       const hotelResourceCache = new Map<string, any>()
 
-      const hotelItemInventories = hotel.items
+      const hotelItemInventories = hotelOffer.items
         .filter((i: any) => i.resourceType === 'Hotel' && i.inventoryId)
         .map((i: any) => i.inventoryId)
 
@@ -46,26 +54,22 @@ export async function GET(
       )
 
       const [inventoriesGeneric, inventoriesHotel] = await Promise.all([
-        Inventory.find({ _id: { $in: inventoryIds } }).select('resource resourceType').lean(),
-        InventoryHotel.find({ _id: { $in: inventoryIds } }).select('resource').lean()
+        Inventory.find({ _id: { $in: inventoryIds } }).select('resource resourceType inventoryName pricing').lean(),
+        InventoryHotel.find({ _id: { $in: inventoryIds } }).select('resource inventoryName pricingMode rooms').lean()
       ])
 
       const inventoryMap = new Map<string, any>()
       for (const inv of inventoriesGeneric) inventoryMap.set(inv._id.toString(), inv)
       for (const inv of inventoriesHotel) inventoryMap.set(inv._id.toString(), inv)
 
-      for (const item of hotel.items) {
-        if (item.resourceType !== 'Hotel' || !item.selectedRooms || item.selectedRooms.length === 0) {
+      for (const item of hotelOffer.items) {
+        if (item.resourceType !== 'Hotel') {
           continue
         }
 
         const inv = item.inventoryId ? inventoryMap.get(item.inventoryId.toString()) : undefined
-
-        // 1) Preferir el resourceId persistido en la oferta (si existe)
-        // 2) Fallback: obtener el Hotel._id desde el inventario (InventoryHotel.resource / Inventory.resource)
         const resourceId = item.hotelInfo?.resourceId || inv?.resource
-
-        if (!resourceId) continue
+        if (!resourceId || !inv) continue
 
         try {
           const cacheKey = resourceId.toString()
@@ -80,7 +84,6 @@ export async function GET(
 
           if (!hotelResource) continue
 
-          // Agregar fotos del hotel si no existen en hotelInfo
           if (item.hotelInfo && (!item.hotelInfo.photos || item.hotelInfo.photos.length === 0)) {
             item.hotelInfo.photos = hotelResource.photos || []
           }
@@ -93,38 +96,52 @@ export async function GET(
               item.hotelInfo.location = hotelResource.location as any
             }
 
-            // Enriquecer políticas para poder mostrar cancelación/niños/mascotas en Tabs
             item.hotelInfo.policies = {
               ...(hotelResource.policies || {}),
               ...(item.hotelInfo.policies || {})
             }
 
-            // Agregar amenidades del hotel (no están en el schema, pero sí para consumo frontend)
             ;(item.hotelInfo as any).amenities = hotelResource.amenities || []
 
-            // Agregar descripción del hotel si no existe en la oferta
-            if (!(hotel as any).description && hotelResource.description) {
-              ;(hotel as any).description = hotelResource.description
+            if (!hotelOffer.description && hotelResource.description) {
+              hotelOffer.description = hotelResource.description
             }
           }
 
-          // Enriquecer cada selectedRoom con las fotos de su roomType
-          item.selectedRooms = item.selectedRooms.map((room: any) => {
+          // RECONSTRUIR selectedRooms desde InventoryHotel aplicando markup de la oferta
+          item.selectedRooms = (inv.rooms || []).map((invRoom: any) => {
             const roomType = hotelResource.roomTypes?.find((rt: any) =>
-              rt._id?.toString() === room.roomTypeId?.toString()
+              rt._id?.toString() === invRoom.roomType?.toString()
             )
 
-            if (roomType) {
-              return {
-                ...room,
-                images: roomType.images || [],
-                category: roomType.category,
-                occupancy: roomType.occupancy,
-                viewType: roomType.viewType,
-                amenities: roomType.amenities
+            // Aplicar markup a capacityPrices
+            const capacityPricesWithMarkup: any = {}
+            if (invRoom.capacityPrices) {
+              for (const [occupancy, prices] of Object.entries(invRoom.capacityPrices)) {
+                if (prices && typeof prices === 'object') {
+                  capacityPricesWithMarkup[occupancy] = {
+                    adult: applyMarkup((prices as any).adult || 0, hotelOffer.markup),
+                    child: applyMarkup((prices as any).child || 0, hotelOffer.markup),
+                    infant: 0
+                  }
+                }
               }
             }
-            return room
+
+            return {
+              roomTypeId: invRoom.roomType,
+              name: invRoom.roomName || roomType?.name || 'Habitación',
+              plan: 'Standard',
+              capacityPrices: capacityPricesWithMarkup,
+              stock: invRoom.stock || 0,
+              images: roomType?.images || [],
+              category: roomType?.category,
+              occupancy: roomType?.occupancy,
+              viewType: roomType?.viewType,
+              amenities: roomType?.amenities,
+              validFrom: invRoom.validFrom,
+              validTo: invRoom.validTo
+            }
           })
 
           // Ordenar habitaciones por tipo de ocupación (simple, doble, triple, quad)
@@ -136,7 +153,6 @@ export async function GET(
           }
           
           item.selectedRooms.sort((a: any, b: any) => {
-            // Obtener el primer tipo de ocupación de cada habitación
             const occupancyA = a.occupancy?.[0] || 'quad'
             const occupancyB = b.occupancy?.[0] || 'quad'
             
@@ -151,7 +167,7 @@ export async function GET(
       }
     }
     
-    return NextResponse.json({ success: true, data: hotel })
+    return NextResponse.json({ success: true, data: hotelOffer })
   } catch (error: any) {
     console.error('Error fetching hotel:', error)
     return NextResponse.json(

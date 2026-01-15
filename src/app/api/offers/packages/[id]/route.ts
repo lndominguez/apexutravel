@@ -154,7 +154,7 @@ export async function PUT(
   }
 }
 
-// DELETE /api/offers/packages/[id] - Eliminar paquete (soft delete)
+// DELETE /api/offers/packages/[id] - Eliminar paquete (soft delete por defecto, permanente con ?permanent=true)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -167,6 +167,8 @@ export async function DELETE(
 
     await connectDB()
     const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const isPermanent = searchParams.get('permanent') === 'true'
 
     const packageData = await Offer.findById(id)
 
@@ -177,14 +179,30 @@ export async function DELETE(
       )
     }
 
-    // Soft delete: cambiar status a archived
-    packageData.status = 'archived'
-    packageData.updatedBy = session.user.id as any
-    await packageData.save()
+    // Verificar que no esté publicado si se intenta eliminar permanentemente
+    if (isPermanent && packageData.status === 'published') {
+      return NextResponse.json(
+        { error: 'No se puede eliminar una oferta publicada. Primero debes archivarla.' },
+        { status: 400 }
+      )
+    }
 
-    return NextResponse.json({
-      message: 'Paquete eliminado exitosamente'
-    })
+    if (isPermanent) {
+      // Eliminación permanente
+      await Offer.findByIdAndDelete(id)
+      return NextResponse.json({
+        message: 'Paquete eliminado permanentemente'
+      })
+    } else {
+      // Soft delete: cambiar status a archived
+      packageData.status = 'archived'
+      packageData.updatedBy = session.user.id as any
+      await packageData.save()
+
+      return NextResponse.json({
+        message: 'Paquete archivado exitosamente'
+      })
+    }
   } catch (error: any) {
     console.error('Error al eliminar paquete:', error)
     return NextResponse.json(

@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
     
     // Enviar email de notificación al administrador
     try {
-      const adminEmail = process.env.ADMIN_EMAIL || 'admin@apexutravel.com'
+      const adminEmail = process.env.ADMIN_EMAIL || 'sales@apexucode.com'
       
       await sendBookingNotificationAdmin({
         adminEmail,

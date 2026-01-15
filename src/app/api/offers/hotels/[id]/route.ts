@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth'
 import connectDB from '@/lib/db/mongoose'
 import Offer from '@/models/Offer'
 import Hotel from '@/models/Hotel'
+import Inventory from '@/models/Inventory'
+import InventoryHotel from '@/models/InventoryHotel'
 
 // GET /api/offers/hotels/[id] - Obtener una oferta de hotel específica
 export async function GET(
@@ -18,8 +20,9 @@ export async function GET(
     await connectDB()
 
     const { id } = await params
-    const hotel = await Offer.findOne({ _id: id, type: 'hotel' })
+    const hotel: any = await Offer.findOne({ _id: id, type: 'hotel' })
       .populate('createdBy', 'firstName lastName email')
+      .populate('updatedBy', 'firstName lastName email')
       .lean()
 
     if (!hotel) {
@@ -29,45 +32,56 @@ export async function GET(
       )
     }
 
-    // Enriquecer selectedRooms con imágenes del hotel resource
+    // Cargar datos completos del inventario y hotel resource
     if (hotel.items && hotel.items.length > 0) {
-      for (const item of hotel.items) {
-        if (item.resourceType === 'Hotel' && item.selectedRooms && item.selectedRooms.length > 0) {
-          const resourceId = item.hotelInfo?.resourceId
-          
-          if (resourceId) {
-            try {
-              const hotelResource = await Hotel.findById(resourceId)
-                .select('photos roomTypes')
-                .lean()
-              
+      const hotelItems = hotel.items.filter((i: any) => i.resourceType === 'Hotel' && i.inventoryId)
+      const inventoryIds = hotelItems.map((i: any) => i.inventoryId)
+
+      if (inventoryIds.length > 0) {
+        const [inventoriesGeneric, inventoriesHotel] = await Promise.all([
+          Inventory.find({ _id: { $in: inventoryIds } }).select('resource resourceType inventoryName pricing').lean(),
+          InventoryHotel.find({ _id: { $in: inventoryIds } }).select('resource inventoryName pricingMode rooms').lean()
+        ])
+
+        const inventoryMap = new Map<string, any>()
+        for (const inv of inventoriesGeneric) inventoryMap.set(inv._id.toString(), inv)
+        for (const inv of inventoriesHotel) inventoryMap.set(inv._id.toString(), inv)
+
+        // Cargar hotel resources
+        const resourceIds = Array.from(new Set(
+          [...inventoriesGeneric, ...inventoriesHotel]
+            .map((inv: any) => inv.resource?.toString())
+            .filter(Boolean)
+        ))
+
+        const hotelResources = await Hotel.find({ _id: { $in: resourceIds } })
+          .select('name stars location photos amenities policies roomTypes description')
+          .lean()
+
+        const hotelResourceMap = new Map<string, any>()
+        for (const hotelRes of hotelResources) {
+          hotelResourceMap.set(hotelRes._id.toString(), hotelRes)
+        }
+
+        // Enriquecer items con datos del inventario y hotel
+        for (const item of hotel.items) {
+          if (item.resourceType === 'Hotel' && item.inventoryId) {
+            const inv = inventoryMap.get(item.inventoryId.toString())
+            if (inv) {
+              item.inventory = inv
+              const hotelResource = hotelResourceMap.get(inv.resource?.toString())
               if (hotelResource) {
-                // Agregar fotos del hotel si no existen en hotelInfo
-                if (item.hotelInfo && (!item.hotelInfo.photos || item.hotelInfo.photos.length === 0)) {
-                  item.hotelInfo.photos = hotelResource.photos || []
-                }
-                
-                // Enriquecer selectedRooms con fotos
-                item.selectedRooms = item.selectedRooms.map((room: any) => {
-                  const roomType = hotelResource.roomTypes?.find((rt: any) => 
-                    rt._id?.toString() === room.roomTypeId?.toString()
-                  )
-                  
-                  if (roomType && roomType.images) {
-                    return {
-                      ...room,
-                      images: roomType.images
-                    }
-                  }
-                  return room
-                })
+                item.hotelResource = hotelResource
               }
-            } catch (error) {
-              console.error('Error fetching hotel resource:', error)
             }
           }
         }
       }
+    }
+
+    // Calcular days desde nights si existe
+    if (hotel.duration?.nights) {
+      hotel.duration.days = hotel.duration.nights + 1
     }
 
     return NextResponse.json(hotel)
@@ -146,42 +160,20 @@ export async function PUT(
     
     console.log('✅ Oferta actualizada exitosamente:', updatedHotel?._id)
 
-    // Enriquecer selectedRooms con imágenes del hotel resource
+    // Enriquecer items con datos del hotel resource si existen
     if (updatedHotel && updatedHotel.items && updatedHotel.items.length > 0) {
       for (const item of updatedHotel.items) {
-        if (item.resourceType === 'Hotel' && item.selectedRooms && item.selectedRooms.length > 0) {
-          const resourceId = item.hotelInfo?.resourceId
-          
-          if (resourceId) {
-            try {
-              const hotelResource = await Hotel.findById(resourceId)
-                .select('photos roomTypes')
-                .lean()
-              
-              if (hotelResource) {
-                // Agregar fotos del hotel si no existen en hotelInfo
-                if (item.hotelInfo && (!item.hotelInfo.photos || item.hotelInfo.photos.length === 0)) {
-                  item.hotelInfo.photos = hotelResource.photos || []
-                }
-                
-                // Enriquecer selectedRooms con fotos
-                item.selectedRooms = item.selectedRooms.map((room: any) => {
-                  const roomType = hotelResource.roomTypes?.find((rt: any) => 
-                    rt._id?.toString() === room.roomTypeId?.toString()
-                  )
-                  
-                  if (roomType && roomType.images) {
-                    return {
-                      ...room,
-                      images: roomType.images
-                    }
-                  }
-                  return room
-                })
-              }
-            } catch (error) {
-              console.error('Error fetching hotel resource:', error)
+        if (item.resourceType === 'Hotel' && item.hotelInfo?.resourceId) {
+          try {
+            const hotelResource = await Hotel.findById(item.hotelInfo.resourceId)
+              .select('name stars location photos amenities policies description')
+              .lean()
+            
+            if (hotelResource) {
+              item.hotelInfo = hotelResource
             }
+          } catch (err) {
+            console.error('Error loading hotel resource:', err)
           }
         }
       }
@@ -200,7 +192,7 @@ export async function PUT(
   }
 }
 
-// DELETE /api/offers/hotels/[id] - Eliminar oferta de hotel
+// DELETE /api/offers/hotels/[id] - Eliminar oferta de hotel (soft delete por defecto, permanente con ?permanent=true)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -214,6 +206,9 @@ export async function DELETE(
     await connectDB()
 
     const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const isPermanent = searchParams.get('permanent') === 'true'
+
     const hotel = await Offer.findOne({ _id: id, type: 'hotel' })
     if (!hotel) {
       return NextResponse.json(
@@ -222,11 +217,30 @@ export async function DELETE(
       )
     }
 
-    await Offer.findByIdAndDelete(id)
+    // Verificar que no esté publicado si se intenta eliminar permanentemente
+    if (isPermanent && hotel.status === 'published') {
+      return NextResponse.json(
+        { error: 'No se puede eliminar una oferta publicada. Primero debes archivarla.' },
+        { status: 400 }
+      )
+    }
 
-    return NextResponse.json({
-      message: 'Oferta de hotel eliminada exitosamente'
-    })
+    if (isPermanent) {
+      // Eliminación permanente
+      await Offer.findByIdAndDelete(id)
+      return NextResponse.json({
+        message: 'Oferta de hotel eliminada permanentemente'
+      })
+    } else {
+      // Soft delete: cambiar status a archived
+      hotel.status = 'archived'
+      hotel.updatedBy = session.user.id as any
+      await hotel.save()
+
+      return NextResponse.json({
+        message: 'Oferta de hotel archivada exitosamente'
+      })
+    }
   } catch (error: any) {
     console.error('Error al eliminar oferta de hotel:', error)
     return NextResponse.json(

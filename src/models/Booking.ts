@@ -33,8 +33,8 @@ export interface IBooking extends Document {
   type: 'package' | 'hotel' | 'flight'
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
   
-  // Referencia al item reservado
-  itemId: mongoose.Types.ObjectId
+  // Referencia al item reservado (slug del hotel/package/flight)
+  itemId: string
   itemType: string
   itemName: string
   
@@ -155,7 +155,7 @@ const BookingSchema = new Schema<IBooking>({
   },
   
   itemId: { 
-    type: Schema.Types.ObjectId, 
+    type: String, 
     required: true,
     index: true
   },

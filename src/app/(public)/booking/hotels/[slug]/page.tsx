@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { SearchLayout } from '@/components/layout/SearchLayout'
 import { parseDate } from '@internationalized/date'
+import { RoomReservationsPanel } from '@/components/booking/RoomReservationsPanel'
 
 export default function HotelDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -15,27 +16,40 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
   const carouselRef = useRef<HTMLDivElement>(null)
   
   // Estados del formulario de reserva
-  const [adults, setAdults] = useState(1)
-  const [children, setChildren] = useState(0)
-  const [infants, setInfants] = useState(0)
   const [startDate, setStartDate] = useState<any>(null)
   const [endDateManual, setEndDateManual] = useState<any>(null)
-  const [totalPrice, setTotalPrice] = useState(0)
   const [hotel, setHotel] = useState<any>(null)
   
-  // Estados para selección de habitación y ocupancy
-  const [selectedRoomIndex, setSelectedRoomIndex] = useState(0)
-  const [selectedOccupancy, setSelectedOccupancy] = useState<string>('single')
-  const [roomImageIndex, setRoomImageIndex] = useState(0)
+  // Sistema de múltiples habitaciones
+  interface RoomReservation {
+    id: string
+    roomIndex: number
+    occupancy: string
+    adults: number
+    children: number
+    infants: number
+  }
   
-  // Estado para selector de huéspedes
-  const [isGuestsOpen, setIsGuestsOpen] = useState(false)
+  const [roomReservations, setRoomReservations] = useState<RoomReservation[]>([])
+  
+  // Estados para vista de habitaciones disponibles
+  const [selectedRoomIndex, setSelectedRoomIndex] = useState(0)
+  const [roomImageIndex, setRoomImageIndex] = useState(0)
   
   // Extraer info de items[] para compatibilidad
   const hotelItem = hotel?.items?.find((item: any) => item.resourceType === 'Hotel')
   const hotelInfo = hotelItem?.hotelInfo
   const location = hotelInfo?.location
-  const images = hotel?.coverPhoto ? [hotel.coverPhoto, ...(hotelInfo?.photos || [])] : (hotelInfo?.photos || ['https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200'])
+  
+  // Filtrar coverPhoto duplicado: solo agregarlo si no está ya en las fotos del hotel
+  const hotelPhotos = hotelInfo?.photos || []
+  const coverPhoto = hotel?.coverPhoto
+  const images = coverPhoto && !hotelPhotos.includes(coverPhoto)
+    ? [coverPhoto, ...hotelPhotos]
+    : hotelPhotos.length > 0 
+      ? hotelPhotos 
+      : ['https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200']
+  
   const hotelAmenities = (hotelInfo as any)?.amenities || []
   
   // Las habitaciones ya vienen enriquecidas con fotos desde el endpoint
@@ -80,6 +94,64 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
 
   const diffDaysUtc = (start: Date, end: Date) => Math.max(1, Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)))
 
+  // Funciones para manejar múltiples habitaciones
+  const addRoomReservation = () => {
+    const newReservation: RoomReservation = {
+      id: `room-${Date.now()}`,
+      roomIndex: 0,
+      occupancy: selectedRooms[0]?.occupancy?.[0] || 'double',
+      adults: 2,
+      children: 0,
+      infants: 0
+    }
+    setRoomReservations([...roomReservations, newReservation])
+  }
+
+  const removeRoomReservation = (id: string) => {
+    setRoomReservations(roomReservations.filter(r => r.id !== id))
+  }
+
+  const updateRoomReservation = (id: string, updates: Partial<RoomReservation>) => {
+    setRoomReservations(roomReservations.map(r => 
+      r.id === id ? { ...r, ...updates } : r
+    ))
+  }
+
+  const calculateRoomPrice = (reservation: RoomReservation) => {
+    const room = selectedRooms[reservation.roomIndex]
+    if (!room?.capacityPrices?.[reservation.occupancy]) return 0
+
+    const prices = room.capacityPrices[reservation.occupancy]
+    const pricePerNight = 
+      (prices.adult * reservation.adults) +
+      (prices.child * reservation.children) +
+      (prices.infant * reservation.infants)
+
+    return pricePerNight * duration.nights
+  }
+
+  const calculateTotalPrice = () => {
+    return roomReservations.reduce((total, reservation) => {
+      return total + calculateRoomPrice(reservation)
+    }, 0)
+  }
+
+  // Calcular totales de huéspedes
+  const totalGuests = roomReservations.reduce((sum, r) => ({
+    adults: sum.adults + r.adults,
+    children: sum.children + r.children,
+    infants: sum.infants + r.infants
+  }), { adults: 0, children: 0, infants: 0 })
+
+  // Validar que todas las habitaciones tengan al menos 1 persona (adulto o niño)
+  const isBookingValid = () => {
+    if (!startDate || !endDateManual) return false
+    if (roomReservations.length === 0) return false
+    
+    // Verificar que cada habitación tenga al menos 1 persona
+    return roomReservations.every(room => (room.adults + room.children) >= 1)
+  }
+
   
   // Fetch del hotel usando API pública
   const [isLoading, setIsLoading] = useState(true)
@@ -105,6 +177,22 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
             const calculatedEndDate = new Date(validFromDate.getTime() + (offerDuration * 24 * 60 * 60 * 1000))
             setEndDateManual(parseDate(calculatedEndDate.toISOString().split('T')[0]))
           }
+
+          // Inicializar con una habitación por defecto para mostrar precio desde el inicio
+          const hotelRooms = data.data?.items?.find((item: any) => item.resourceType === 'Hotel')?.selectedRooms
+          if (hotelRooms && hotelRooms.length > 0) {
+            const defaultRoom = hotelRooms[0]
+            const defaultOccupancy = defaultRoom?.occupancy?.[0] || 'double'
+            
+            setRoomReservations([{
+              id: `room-${Date.now()}`,
+              roomIndex: 0,
+              occupancy: defaultOccupancy,
+              adults: 2,
+              children: 0,
+              infants: 0
+            }])
+          }
         }
       } catch (error) {
         console.error('Error fetching hotel:', error)
@@ -114,63 +202,6 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
     }
     fetchHotel()
   }, [resolvedParams.slug])
-
-
-  useEffect(() => {
-    const defaultRoom = selectedRooms?.[0]
-    if (!defaultRoom?.occupancy || !defaultRoom?.pricing?.capacityAdjustments) {
-      // Si no hay datos, usar la primera ocupación disponible
-      const defaultOcc = defaultRoom?.occupancy?.[0]
-      if (defaultOcc) {
-        setSelectedOccupancy(defaultOcc)
-      }
-      return
-    }
-    
-    // Buscar la ocupación con capacityAdjustment = 0 (capacidad base sin cargo adicional)
-    const baseOccupancy = defaultRoom.occupancy.find((occ: string) => {
-      const adjustment = defaultRoom.pricing.capacityAdjustments[occ]
-      return adjustment === 0 || adjustment === undefined
-    })
-    
-    // Si se encuentra la ocupación base, usarla; sino usar la primera
-    setSelectedOccupancy(baseOccupancy || defaultRoom.occupancy[0])
-  }, [hotel])
-
-  // Calcular precio total cuando cambian los valores
-  useEffect(() => {
-    if (!selectedRooms || selectedRooms.length === 0) return
-    
-    const selectedRoom = selectedRooms[selectedRoomIndex]
-    if (!selectedRoom?.pricing) return
-    
-    const totalNights = duration?.nights || 1
-    
-    // Precio base del inventario por persona por noche
-    const adultPriceBase = selectedRoom.pricing.adult || 0
-    const childPriceBase = selectedRoom.pricing.child || 0
-    const infantPriceBase = selectedRoom.pricing.infant || 0
-    
-    // Calcular precio total de personas por noche (sin markup)
-    const totalPersonsPrice = (adultPriceBase * adults) + (childPriceBase * children) + (infantPriceBase * infants)
-    
-    // Aplicar markup de la oferta
-    let priceWithMarkup = totalPersonsPrice
-    if (offerMarkup.type === 'percentage') {
-      priceWithMarkup = totalPersonsPrice * (1 + offerMarkup.value / 100)
-    } else if (offerMarkup.type === 'fixed') {
-      priceWithMarkup = totalPersonsPrice + offerMarkup.value
-    }
-    
-    // Ajuste por ocupancy (si se selecciona una capacidad diferente a la base)
-    const capacityAdjustment = selectedRoom.pricing.capacityAdjustments?.[selectedOccupancy] || 0
-    
-    // Calcular precio total: (precio con markup + ajuste de capacidad) × noches
-    const pricePerNight = priceWithMarkup + capacityAdjustment
-    const stayPrice = pricePerNight * totalNights
-    
-    setTotalPrice(stayPrice)
-  }, [adults, children, infants, selectedRoomIndex, selectedOccupancy, selectedRooms, duration, offerMarkup])
 
   if (isLoading) {
     return (
@@ -399,27 +430,6 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
                       )}
                     </div>
 
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-700 mb-1">Ocupación</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedRooms[selectedRoomIndex]?.occupancy?.map((occ: string) => (
-                          <Button
-                            key={occ}
-                            size="sm"
-                            variant={selectedOccupancy === occ ? "solid" : "bordered"}
-                            className={selectedOccupancy === occ ? "bg-[#0c3f5b] text-white" : ""}
-                            onPress={() => setSelectedOccupancy(occ)}
-                          >
-                            {occ === 'single' ? 'Simple' :
-                             occ === 'double' ? 'Doble' :
-                             occ === 'triple' ? 'Triple' :
-                             occ === 'quad' ? 'Cuádruple' : occ}
-                          </Button>
-                        )) || (
-                          <p className="text-sm text-gray-500">No hay tipos de ocupancy disponibles</p>
-                        )}
-                      </div>
-                    </div>
                   </CardBody>
                 </Card>
 
@@ -664,37 +674,36 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
                       <span className="text-white/60 text-xs font-semibold uppercase tracking-wider">Total</span>
                     </div>
                     
-                    {selectedRooms[selectedRoomIndex] && (
+                    {roomReservations.length > 0 && (
                       <div className="mb-4">
                         <Chip size="sm" className="bg-white/10 text-white border border-white/20">
                           <div className="flex items-center gap-1">
                             <Bed size={12} />
-                            <span className="text-xs">{selectedRooms[selectedRoomIndex].name}</span>
+                            <span className="text-xs">{roomReservations.length} {roomReservations.length === 1 ? 'habitación' : 'habitaciones'}</span>
                           </div>
                         </Chip>
                       </div>
                     )}
                     
                     <div className="mb-2">
-                      <div className="flex items-end gap-2">
-                        <span className="text-6xl font-black text-white tracking-tight">
-                          ${Math.floor(totalPrice).toLocaleString('en-US')}
+                      <div className="flex items-end gap-2 flex-wrap">
+                        <span className="text-4xl font-black text-white tracking-tight break-all">
+                          ${Math.floor(calculateTotalPrice()).toLocaleString('en-US')}
                         </span>
-                        <span className="text-2xl font-bold text-white/40 mb-2">
+                        <span className="text-xl font-bold text-white/40 mb-1">
                           USD
                         </span>
                       </div>
                     </div>
                     
                     <div className="flex items-center gap-2 text-white/60 text-sm">
-                      {selectedOccupancy && (
+                      {totalGuests.adults + totalGuests.children + totalGuests.infants > 0 && (
                         <>
                           <Users size={14} />
                           <span>
-                            {selectedOccupancy === 'single' ? 'Simple' :
-                             selectedOccupancy === 'double' ? 'Doble' :
-                             selectedOccupancy === 'triple' ? 'Triple' :
-                             selectedOccupancy === 'quad' ? 'Cuádruple' : selectedOccupancy}
+                            {totalGuests.adults} {totalGuests.adults === 1 ? 'adulto' : 'adultos'}
+                            {totalGuests.children > 0 && `, ${totalGuests.children} ${totalGuests.children === 1 ? 'niño' : 'niños'}`}
+                            {totalGuests.infants > 0 && `, ${totalGuests.infants} ${totalGuests.infants === 1 ? 'infante' : 'infantes'}`}
                           </span>
                         </>
                       )}
@@ -740,95 +749,16 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
                     )}
                   </div>
 
-                  {/* Selector de huéspedes con Popover */}
-                  <div>
-                    <label className="text-sm font-bold text-gray-900 mb-3 block">Huéspedes</label>
-                    <Popover placement="bottom" isOpen={isGuestsOpen} onOpenChange={setIsGuestsOpen}>
-                      <PopoverTrigger>
-                        <button className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-xl border-2 border-gray-200 hover:border-[#0c3f5b] transition-colors">
-                          <div className="flex items-center gap-2">
-                            <Users size={16} className="text-[#0c3f5b]" />
-                            <div className="flex items-center gap-2 text-sm">
-                              <span className="font-semibold text-gray-900">{adults} adulto{adults !== 1 ? 's' : ''}</span>
-                              {(children > 0 || infants > 0) && (
-                                <>
-                                  <span className="text-gray-400">•</span>
-                                  {children > 0 && <span className="text-gray-700">{children} niño{children !== 1 ? 's' : ''}</span>}
-                                  {children > 0 && infants > 0 && <span className="text-gray-400">•</span>}
-                                  {infants > 0 && <span className="text-gray-700">{infants} infante{infants !== 1 ? 's' : ''}</span>}
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          <ChevronRight size={16} className={`text-gray-400 transition-transform ${isGuestsOpen ? 'rotate-90' : ''}`} />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-80">
-                        <div className="p-4 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-[#0c3f5b] rounded-lg">
-                                <Users size={16} className="text-white" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-semibold text-gray-800">Adultos</p>
-                                <p className="text-xs text-gray-500">Mayores de 18 años</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button isIconOnly size="sm" variant="flat" className="min-w-8 h-8" onPress={() => setAdults(Math.max(1, adults - 1))}>
-                                <Minus size={14} />
-                              </Button>
-                              <span className="w-8 text-center font-bold text-gray-900">{adults}</span>
-                              <Button isIconOnly size="sm" className="bg-[#0c3f5b] text-white min-w-8 h-8" onPress={() => setAdults(Math.min(6, adults + 1))}>
-                                <Plus size={14} />
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-[#ec9c12] rounded-lg">
-                                <Baby size={16} className="text-white" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-semibold text-gray-800">Niños</p>
-                                <p className="text-xs text-gray-500">2-17 años</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button isIconOnly size="sm" variant="flat" className="min-w-8 h-8" onPress={() => setChildren(Math.max(0, children - 1))}>
-                                <Minus size={14} />
-                              </Button>
-                              <span className="w-8 text-center font-bold text-gray-900">{children}</span>
-                              <Button isIconOnly size="sm" className="bg-[#ec9c12] text-white min-w-8 h-8" onPress={() => setChildren(Math.min(4, children + 1))}>
-                                <Plus size={14} />
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-[#f1c203] rounded-lg">
-                                <Baby size={16} className="text-white" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-semibold text-gray-800">Infantes</p>
-                                <p className="text-xs text-gray-500">Menores de 2 años</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button isIconOnly size="sm" variant="flat" className="min-w-8 h-8" onPress={() => setInfants(Math.max(0, infants - 1))}>
-                                <Minus size={14} />
-                              </Button>
-                              <span className="w-8 text-center font-bold text-gray-900">{infants}</span>
-                              <Button isIconOnly size="sm" className="bg-[#f1c203] text-white min-w-8 h-8" onPress={() => setInfants(Math.min(2, infants + 1))}>
-                                <Plus size={14} />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                  {/* Panel de habitaciones múltiples */}
+                  <RoomReservationsPanel
+                    selectedRooms={selectedRooms}
+                    roomReservations={roomReservations}
+                    duration={duration}
+                    onAddRoom={addRoomReservation}
+                    onRemoveRoom={removeRoomReservation}
+                    onUpdateRoom={updateRoomReservation}
+                    calculateRoomPrice={calculateRoomPrice}
+                  />
 
                   {/* Divider */}
                   <div className="border-t border-gray-200"></div>
@@ -842,21 +772,35 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
                         alert('Por favor selecciona las fechas de tu estadía')
                         return
                       }
+                      if (roomReservations.length === 0) {
+                        alert('Por favor agrega al menos una habitación')
+                        return
+                      }
+                      // Validar que cada habitación tenga al menos 1 persona
+                      const invalidRooms = roomReservations.filter(r => (r.adults + r.children) < 1)
+                      if (invalidRooms.length > 0) {
+                        alert('Cada habitación debe tener al menos 1 persona (adulto o niño)')
+                        return
+                      }
+                      // Calcular totales de huéspedes para el checkout
+                      const totalAdults = roomReservations.reduce((sum, r) => sum + r.adults, 0)
+                      const totalChildren = roomReservations.reduce((sum, r) => sum + r.children, 0)
+                      const totalInfants = roomReservations.reduce((sum, r) => sum + r.infants, 0)
+                      
                       const params = new URLSearchParams({
                         type: 'hotel',
-                        id: hotel._id,
+                        id: hotel.slug,
                         startDate: startDate.toString(),
                         endDate: endDateManual.toString(),
-                        adults: adults.toString(),
-                        children: children.toString(),
-                        infants: infants.toString(),
-                        roomIndex: selectedRoomIndex.toString(),
-                        occupancy: selectedOccupancy,
-                        totalPrice: totalPrice.toString()
+                        adults: totalAdults.toString(),
+                        children: totalChildren.toString(),
+                        infants: totalInfants.toString(),
+                        roomReservations: JSON.stringify(roomReservations),
+                        totalPrice: calculateTotalPrice().toString()
                       })
                       router.push(`/checkout?${params.toString()}`)
                     }}
-                    isDisabled={!startDate || !endDateManual}
+                    isDisabled={!isBookingValid()}
                     startContent={<Check size={20} />}
                   >
                     Reservar ahora

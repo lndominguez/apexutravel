@@ -372,7 +372,7 @@ export const BookingConfirmationClient = ({
                       margin: '0 0 20px 0',
                       fontWeight: '600'
                     }}>
-                      📧 info@apexutravel.com | 📱 +52 123 456 7890
+                      📧 info@apexucode.com | 📱 +52 123 456 7890
                     </p>
                     <p style={{ 
                       fontSize: '12px', 

@@ -71,7 +71,8 @@ export default function UnifiedOfferModal({
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [description, setDescription] = useState('')
-  const [status, setStatus] = useState<'draft' | 'active' | 'inactive'>('draft')
+  const [status, setStatus] = useState<'draft' | 'published' | 'archived'>('draft')
+  const [isLoadingOfferData, setIsLoadingOfferData] = useState(false)
   const [coverImage, setCoverImage] = useState<string>('')
 
   // Fetch del recurso (hotel) cuando se selecciona un item
@@ -112,22 +113,140 @@ export default function UnifiedOfferModal({
     fetchResource()
   }, [selectedItemIndex, items])
 
+  // Inicializar coverImage con la primera foto del hotel cuando se carga resourceData
   useEffect(() => {
-    if (isOpen && offerData && mode === 'edit') {
-      setCurrentStep(1)
-      setOfferType(offerData.type || 'package')
-      setItems(offerData.items || [])
-      setMarkupType(offerData.markup?.type || 'percentage')
-      setMarkupValue(offerData.markup?.value || 10)
-      const hasValidDates = offerData.validFrom || offerData.validTo
-      setHasValidity(!!hasValidDates)
-      setValidFrom(offerData.validFrom ? new Date(offerData.validFrom).toISOString().split('T')[0] : '')
-      setValidTo(offerData.validTo ? new Date(offerData.validTo).toISOString().split('T')[0] : '')
-      setName(offerData.name || '')
-      setCode(offerData.code || '')
-      setDescription(offerData.description || '')
-      setStatus(offerData.status || 'draft')
+    if (resourceData && resourceData.photos && resourceData.photos.length > 0 && !coverImage) {
+      setCoverImage(resourceData.photos[0])
     }
+  }, [resourceData])
+
+  // Establecer pricingCalculation automáticamente según el tipo de oferta
+  useEffect(() => {
+    if (offerType === 'package') {
+      setPricingCalculation('fullPackage')
+    } else if (offerType === 'hotel') {
+      setPricingCalculation('perNight')
+    }
+  }, [offerType])
+
+  useEffect(() => {
+    const normalizeOfferItems = (rawItems: any[]) => {
+      return (rawItems || []).map((item: any) => {
+        const inventoryId = typeof item.inventoryId === 'object'
+          ? (item.inventoryId?._id || item.inventoryId)
+          : item.inventoryId
+
+        if (item.resourceType === 'Hotel') {
+          const inventory = item.inventory || item.inventoryId
+          const hotelResource = item.hotelResource || item.inventoryId?.resource
+
+          return {
+            ...item,
+            inventoryId,
+            mandatory: item.mandatory ?? true,
+            hotelInfo: {
+              resourceId: item.hotelInfo?.resourceId || hotelResource?._id || inventory?.resource?._id || inventory?.resource,
+              name: item.hotelInfo?.name || hotelResource?.name || inventory?.resource?.name || item.inventoryName,
+              stars: item.hotelInfo?.stars || hotelResource?.stars || inventory?.resource?.stars || 0,
+              location: item.hotelInfo?.location || hotelResource?.location || inventory?.resource?.location || { city: '', country: '' },
+              rooms: item.hotelInfo?.rooms || inventory?.rooms || [],
+              pricingMode: item.hotelInfo?.pricingMode || inventory?.pricingMode,
+              description: item.hotelInfo?.description || hotelResource?.description || inventory?.resource?.description || '',
+              amenities: item.hotelInfo?.amenities || hotelResource?.amenities || inventory?.resource?.amenities || []
+            }
+          }
+        }
+
+        if (item.resourceType === 'Transport') {
+          const raw = item.transportInfo || item.transportOrActivity || {}
+          return {
+            ...item,
+            inventoryId,
+            mandatory: item.mandatory ?? true,
+            transportInfo: {
+              ...raw,
+              basePrice: raw.basePrice ?? raw.pricing?.adult ?? 0
+            }
+          }
+        }
+
+        if (item.resourceType === 'Activity') {
+          const raw = item.activityInfo || item.transportOrActivity || {}
+          return {
+            ...item,
+            inventoryId,
+            mandatory: item.mandatory ?? true,
+            activityInfo: {
+              ...raw,
+              name: raw.name ?? raw.type ?? item.activityInfo?.name,
+              basePrice: raw.basePrice ?? raw.pricing?.adult ?? 0
+            }
+          }
+        }
+
+        return {
+          ...item,
+          inventoryId,
+          mandatory: item.mandatory ?? true
+        }
+      })
+    }
+
+    const fetchFullOfferData = async () => {
+      if (!isOpen || !offerData || mode !== 'edit') return
+
+      setIsLoadingOfferData(true)
+      try {
+        const type = offerData.type || 'package'
+        const id = offerData._id
+        if (!id) return
+
+        let url = ''
+        if (type === 'package') url = `/api/offers/packages/${id}`
+        else if (type === 'hotel') url = `/api/offers/hotels/${id}`
+        else if (type === 'flight') url = `/api/offers/flights/${id}`
+        else if (type === 'transport') url = `/api/offers/transports/${id}`
+        else url = ''
+
+        const fullData = url
+          ? await (async () => {
+              const res = await fetch(url)
+              if (!res.ok) return offerData
+              const json = await res.json()
+              return json.offer || json.package || json.hotel || json
+            })()
+          : offerData
+
+        setCurrentStep(1)
+        setOfferType(fullData.type || 'package')
+
+        const normalizedItems = normalizeOfferItems(fullData.items || [])
+        setItems(normalizedItems)
+        setSelectedItemIndex(normalizedItems.length > 0 ? 0 : null)
+
+        setNights(fullData.duration?.nights || 3)
+
+        setMarkupType(fullData.markup?.type || 'percentage')
+        setMarkupValue(fullData.markup?.value || 10)
+
+        const hasValidDates = fullData.validFrom || fullData.validTo
+        setHasValidity(!!hasValidDates && fullData.type !== 'package')
+        setValidFrom(fullData.validFrom ? new Date(fullData.validFrom).toISOString().split('T')[0] : '')
+        setValidTo(fullData.validTo ? new Date(fullData.validTo).toISOString().split('T')[0] : '')
+
+        setName(fullData.name || '')
+        setCode(fullData.code || '')
+        setDescription(fullData.description || '')
+        setStatus((fullData.status as any) || 'draft')
+        setCoverImage(fullData.coverPhoto || '')
+      } catch (error) {
+        console.error('Error loading offer data for edit:', error)
+      } finally {
+        setIsLoadingOfferData(false)
+      }
+    }
+
+    fetchFullOfferData()
   }, [isOpen, offerData, mode])
 
   const handleClose = () => {
@@ -143,6 +262,7 @@ export default function UnifiedOfferModal({
     setCode('')
     setDescription('')
     setStatus('draft')
+    setCoverImage('')
     setIsItemSelectionOpen(false)
     onClose()
   }
@@ -181,6 +301,29 @@ export default function UnifiedOfferModal({
     setIsSaving(true)
 
     try {
+      // Calcular precio de venta total
+      let totalBasePrice = 0
+      for (const item of items) {
+        if (item.resourceType === 'Hotel' && item.hotelInfo?.rooms && item.hotelInfo.rooms.length > 0) {
+          // Buscar precio más barato de habitación doble
+          let cheapestPrice = null
+          for (const room of item.hotelInfo.rooms) {
+            if (room.capacityPrices?.double?.adult) {
+              const price = room.capacityPrices.double.adult
+              if (cheapestPrice === null || price < cheapestPrice) {
+                cheapestPrice = price
+              }
+            }
+          }
+          if (cheapestPrice !== null && cheapestPrice > 0) {
+            totalBasePrice += cheapestPrice
+          }
+        }
+      }
+
+      // Aplicar markup
+      const totalSalePrice = totalBasePrice > 0 ? applyMarkup(totalBasePrice) : 0
+
       const payload: any = {
         destination,
         type: offerType,
@@ -192,7 +335,17 @@ export default function UnifiedOfferModal({
           type: markupType,
           value: markupValue
         },
-        items
+        items,
+        coverPhoto: coverImage || null,
+        pricing: {
+          currency: 'USD',
+          basePrice: totalBasePrice,
+          finalPrice: totalSalePrice
+        }
+      }
+
+      if (offerType === 'package' || offerType === 'hotel') {
+        payload.duration = { nights }
       }
 
       if (hasValidity && offerType !== 'package') {
@@ -406,10 +559,75 @@ export default function UnifiedOfferModal({
                     </button>
                   </div>
                 ) : (
-                  <div className="p-4 bg-default-50 rounded-xl border border-default-200 text-center">
-                    <p className="text-sm text-default-600">
-                      <span className="font-semibold">Tipo actual:</span> {offerType === 'package' ? '📦 Paquete' : offerType === 'hotel' ? '🏨 Hotel' : '✈️ Vuelo'}
-                    </p>
+                  <div className="grid grid-cols-3 gap-4">
+                    <button
+                      type="button"
+                      disabled
+                      className={`group relative p-6 rounded-2xl border-2 transition-all duration-300 cursor-default ${offerType === 'package'
+                        ? 'border-primary bg-primary/5 shadow-xl shadow-primary/10 scale-105'
+                        : 'border-default-200 bg-default-50 opacity-70'
+                        }`}
+                    >
+                      {offerType === 'package' && (
+                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className={`w-16 h-16 mx-auto mb-3 rounded-2xl flex items-center justify-center transition-all duration-300 ${offerType === 'package' ? 'bg-primary/15' : 'bg-default-100'
+                        }`}>
+                        <Package size={32} className={`transition-colors ${offerType === 'package' ? 'text-primary' : 'text-default-400'}`} />
+                      </div>
+                      <p className={`font-bold text-center text-lg mb-1 transition-colors ${offerType === 'package' ? 'text-primary' : 'text-default-700'}`}>Paquete</p>
+                      <p className="text-xs text-default-500 text-center">Combo completo</p>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled
+                      className={`group relative p-6 rounded-2xl border-2 transition-all duration-300 cursor-default ${offerType === 'hotel'
+                        ? 'border-primary bg-primary/5 shadow-xl shadow-primary/10 scale-105'
+                        : 'border-default-200 bg-default-50 opacity-70'
+                        }`}
+                    >
+                      {offerType === 'hotel' && (
+                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className={`w-16 h-16 mx-auto mb-3 rounded-2xl flex items-center justify-center transition-all duration-300 ${offerType === 'hotel' ? 'bg-primary/15' : 'bg-default-100'
+                        }`}>
+                        <Hotel size={32} className={`transition-colors ${offerType === 'hotel' ? 'text-primary' : 'text-default-400'}`} />
+                      </div>
+                      <p className={`font-bold text-center text-lg mb-1 transition-colors ${offerType === 'hotel' ? 'text-primary' : 'text-default-700'}`}>Hotel</p>
+                      <p className="text-xs text-default-500 text-center">Solo alojamiento</p>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled
+                      className={`group relative p-6 rounded-2xl border-2 transition-all duration-300 cursor-default ${offerType === 'flight'
+                        ? 'border-primary bg-primary/5 shadow-xl shadow-primary/10 scale-105'
+                        : 'border-default-200 bg-default-50 opacity-70'
+                        }`}
+                    >
+                      {offerType === 'flight' && (
+                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className={`w-16 h-16 mx-auto mb-3 rounded-2xl flex items-center justify-center transition-all duration-300 ${offerType === 'flight' ? 'bg-primary/15' : 'bg-default-100'
+                        }`}>
+                        <Plane size={32} className={`transition-colors ${offerType === 'flight' ? 'text-primary' : 'text-default-400'}`} />
+                      </div>
+                      <p className={`font-bold text-center text-lg mb-1 transition-colors ${offerType === 'flight' ? 'text-primary' : 'text-default-700'}`}>Vuelo</p>
+                      <p className="text-xs text-default-500 text-center">Solo vuelos</p>
+                    </button>
                   </div>
                 )}
               </div>
@@ -919,7 +1137,7 @@ export default function UnifiedOfferModal({
                   {/* COLUMNA IZQUIERDA: Configuración específica por tipo */}
                   <div className="pr-6">
                     {offerType === 'package' ? (
-                      // PAQUETES: Selector de cálculo + Noches/Días
+                      // PAQUETES: Solo Noches/Días
                       <>
                         <div className="flex items-center gap-2.5 mb-4">
                           <div className="p-2 bg-primary/10 rounded-lg">
@@ -931,57 +1149,27 @@ export default function UnifiedOfferModal({
                           </div>
                         </div>
                         <div className="space-y-3">
-                          {/* Selector de Cálculo de Precio */}
+                          {/* Duración del Paquete */}
                           <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
-                            <p className="text-xs font-semibold text-default-900 mb-2">Cálculo del Precio</p>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setPricingCalculation('perNight')}
-                                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all ${pricingCalculation === 'perNight'
-                                  ? 'bg-primary text-white shadow-sm'
-                                  : 'bg-white text-default-600 hover:bg-default-100 border border-default-200'
-                                  }`}
-                              >
-                                💰 Por Noche
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setPricingCalculation('fullPackage')}
-                                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all ${pricingCalculation === 'fullPackage'
-                                  ? 'bg-primary text-white shadow-sm'
-                                  : 'bg-white text-default-600 hover:bg-default-100 border border-default-200'
-                                  }`}
-                              >
-                                📦 Combo
-                              </button>
+                            <p className="text-xs font-semibold text-default-900 mb-3">Duración del Paquete</p>
+                            <div className="space-y-3">
+                              <Input
+                                type="number"
+                                label="Noches"
+                                value={nights.toString()}
+                                onChange={(e) => setNights(parseInt(e.target.value) || 1)}
+                                min={1}
+                                variant="bordered"
+                                size="sm"
+                                description="Cantidad de noches del paquete"
+                                startContent={<Calendar size={16} className="text-default-400" />}
+                              />
+                              <div className="flex items-center gap-2 text-xs text-default-600 bg-default-100 px-3 py-2 rounded-lg">
+                                <span className="font-medium">Días:</span>
+                                <span className="font-bold text-primary">{days}</span>
+                                <span className="text-default-400">(calculado automáticamente)</span>
+                              </div>
                             </div>
-                          </div>
-
-                          {/* Noches y Días */}
-                          <div className="grid grid-cols-2 gap-3">
-                            <Input
-                              type="number"
-                              label="Noches"
-                              value={nights.toString()}
-                              onChange={(e) => setNights(parseInt(e.target.value) || 1)}
-                              min={1}
-                              variant="bordered"
-                              size="sm"
-                              description="Cantidad de noches"
-                            />
-                            <Input
-                              type="number"
-                              label="Días"
-                              value={days.toString()}
-                              isReadOnly
-                              variant="bordered"
-                              size="sm"
-                              description="Auto-calculado"
-                              classNames={{
-                                input: "bg-default-100"
-                              }}
-                            />
                           </div>
                         </div>
                       </>
@@ -1098,105 +1286,220 @@ export default function UnifiedOfferModal({
 
           {/* PASO 3: Detalles Finales */}
           {currentStep === 3 && (
-            <div className="max-w-3xl mx-auto space-y-5 animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               <div className="text-center space-y-1">
                 <h3 className="text-xl font-bold text-default-900">Detalles de la Oferta</h3>
                 <p className="text-sm text-default-500">Completa la información que verán tus clientes</p>
               </div>
 
-              <Card className="border border-default-200 shadow-sm">
-                <CardBody className="p-5">
-                  <div className="space-y-4">
-                    <div>
-                      <Input
-                        label="Nombre de la Oferta"
-                        placeholder="Ej: Cancún Todo Incluido 2026"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        isRequired
-                        variant="bordered"
-                        description="Este nombre se mostrará a los clientes"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Input
-                        label="Código (Opcional)"
-                        placeholder="Auto-generado"
-                        value={code}
-                        onChange={(e) => setCode(e.target.value)}
-                        variant="bordered"
-                        description="Déjalo vacío para auto-generar"
-                      />
-                      <Select
-                        label="Estado de Publicación"
-                        selectedKeys={[status]}
-                        onChange={(e) => setStatus(e.target.value as any)}
-                        variant="bordered"
-                      >
-                        <SelectItem key="draft">📝 Borrador</SelectItem>
-                        <SelectItem key="published">🌐 Publicado</SelectItem>
-                      </Select>
-                    </div>
+              <div className="grid grid-cols-12 gap-6">
+                <div className="col-span-7 space-y-5">
+                  <Card className="border border-default-200 shadow-sm">
+                    <CardBody className="p-5">
+                      <div className="flex items-center gap-2.5 mb-4">
+                        <div className="p-2 bg-primary/10 rounded-lg">
+                          <DollarSign size={20} className="text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-default-900">Información</h3>
+                          <p className="text-xs text-default-500">Nombre, estado y descripción</p>
+                        </div>
+                      </div>
 
-                    <div>
-                      <Textarea
-                        label="Descripción"
-                        placeholder="Describe los detalles de tu oferta, qué incluye, beneficios, etc..."
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        minRows={4}
-                        variant="bordered"
-                        description="Una buena descripción ayuda a vender mejor"
-                      />
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
+                      <div className="space-y-4">
+                        <Input
+                          label="Nombre de la Oferta"
+                          placeholder="Ej: Cancún Todo Incluido 2026"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          isRequired
+                          variant="bordered"
+                          description="Este nombre se mostrará a los clientes"
+                        />
 
-              {/* Resumen */}
-              <Card className="bg-gradient-to-br from-primary/5 to-success/5 border border-default-200 shadow-md">
-                <CardBody className="p-5">
-                  <div className="flex items-center gap-2.5 mb-4">
-                    <div className="p-2 bg-success/10 rounded-lg">
-                      <svg className="w-5 h-5 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-default-900">Resumen de la Oferta</h3>
-                      <p className="text-xs text-default-500">Verifica que todo esté correcto</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="p-4 bg-white rounded-lg border border-default-200 shadow-sm">
-                      <p className="text-xs font-medium text-default-500 uppercase tracking-wide mb-1.5">Tipo de Oferta</p>
-                      <p className="font-bold text-default-900">
-                        {offerType === 'package' ? '📦 Paquete' : offerType === 'hotel' ? '🏨 Hotel' : '✈️ Vuelo'}
-                      </p>
-                    </div>
-                    <div className="p-4 bg-white rounded-lg border border-default-200 shadow-sm">
-                      <p className="text-xs font-medium text-default-500 uppercase tracking-wide mb-1.5">Items Agregados</p>
-                      <p className="font-bold text-default-900">
-                        {items.length} componente{items.length !== 1 ? 's' : ''}
-                      </p>
-                    </div>
-                    <div className="p-4 bg-white rounded-lg border border-default-200 shadow-sm">
-                      <p className="text-xs font-medium text-default-500 uppercase tracking-wide mb-1.5">Markup</p>
-                      <p className="font-bold text-default-900">
-                        {markupValue}{markupType === 'percentage' ? '%' : ' USD'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-4 p-3 bg-gradient-to-r from-success/10 to-primary/10 border border-success/20 rounded-lg">
-                    <p className="text-xs text-default-700 flex items-center gap-2">
-                      <svg className="w-4 h-4 text-success flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span>Todo listo para crear tu oferta. Haz clic en el botón de abajo para finalizar.</span>
-                    </p>
-                  </div>
-                </CardBody>
-              </Card>
+                        <div className="grid grid-cols-2 gap-4">
+                          <Input
+                            label="Código (Opcional)"
+                            placeholder="Auto-generado"
+                            value={code}
+                            onChange={(e) => setCode(e.target.value)}
+                            variant="bordered"
+                            description="Déjalo vacío para auto-generar"
+                          />
+                          <Select
+                            label="Estado de Publicación"
+                            selectedKeys={[status]}
+                            onChange={(e) => setStatus(e.target.value as any)}
+                            variant="bordered"
+                          >
+                            <SelectItem key="draft">📝 Borrador</SelectItem>
+                            <SelectItem key="published">🌐 Publicado</SelectItem>
+                            <SelectItem key="archived">📦 Archivado</SelectItem>
+                          </Select>
+                        </div>
+
+                        <Textarea
+                          label="Descripción"
+                          placeholder="Describe los detalles de tu oferta, qué incluye, beneficios, etc..."
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                          minRows={4}
+                          variant="bordered"
+                          description="Una buena descripción ayuda a vender mejor"
+                        />
+                      </div>
+                    </CardBody>
+                  </Card>
+
+                  <Card className="border border-default-200 shadow-sm">
+                    <CardBody className="p-5">
+                      <div className="flex items-center gap-2.5 mb-4">
+                        <div className="p-2 bg-warning/10 rounded-lg">
+                          <Calendar size={20} className="text-warning" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-default-900">Configuración</h3>
+                          <p className="text-xs text-default-500">Duración y markup</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-default-50 rounded-lg border border-default-200">
+                          <p className="text-xs font-medium text-default-500 uppercase tracking-wide mb-1.5">Duración</p>
+                          {offerType === 'package' || offerType === 'hotel' ? (
+                            <p className="font-bold text-default-900">
+                              {nights} noche{nights !== 1 ? 's' : ''}
+                              <span className="text-default-400 font-normal"> • </span>
+                              {days} día{days !== 1 ? 's' : ''}
+                            </p>
+                          ) : (
+                            <p className="font-bold text-default-900">N/A</p>
+                          )}
+                          <p className="text-xs text-default-500 mt-1">
+                            {offerType === 'package' || offerType === 'hotel' ? 'Días se calculan automáticamente' : 'No aplica para este tipo'}
+                          </p>
+                        </div>
+
+                        <div className="p-4 bg-default-50 rounded-lg border border-default-200">
+                          <p className="text-xs font-medium text-default-500 uppercase tracking-wide mb-1.5">Markup</p>
+                          <p className="font-bold text-default-900">
+                            +{markupType === 'percentage' ? `${markupValue}%` : `$${markupValue}`}
+                          </p>
+                          <p className="text-xs text-default-500 mt-1">Aplicado sobre el total base</p>
+                        </div>
+                      </div>
+                    </CardBody>
+                  </Card>
+                </div>
+
+                <div className="col-span-5 space-y-5">
+                  <Card className="border border-default-200 shadow-sm overflow-hidden">
+                    <CardBody className="p-0">
+                      <div className="p-5 border-b border-default-200 bg-default-50">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 bg-primary/10 rounded-lg">
+                            {offerType === 'package' ? (
+                              <Package size={20} className="text-primary" />
+                            ) : offerType === 'hotel' ? (
+                              <Hotel size={20} className="text-primary" />
+                            ) : (
+                              <Plane size={20} className="text-primary" />
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-default-900">Portada</h3>
+                            <p className="text-xs text-default-500">Vista previa</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-5">
+                        {coverImage ? (
+                          <div className="relative w-full aspect-video bg-default-900 rounded-xl overflow-hidden border border-default-200">
+                            <img
+                              src={coverImage}
+                              alt={name || 'Cover'}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none'
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-full aspect-video rounded-xl border-2 border-dashed border-default-300 bg-default-50 flex items-center justify-center">
+                            <div className="text-center">
+                              <div className="w-12 h-12 mx-auto mb-2 bg-default-200 rounded-full flex items-center justify-center">
+                                {offerType === 'package' && <Package size={24} className="text-default-500" />}
+                                {offerType === 'hotel' && <Hotel size={24} className="text-default-500" />}
+                                {offerType === 'flight' && <Plane size={24} className="text-default-500" />}
+                              </div>
+                              <p className="text-xs text-default-500 font-medium">Sin portada seleccionada</p>
+                              <p className="text-xs text-default-400 mt-1">Puedes elegirla en el paso 2</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </CardBody>
+                  </Card>
+
+                  {/* Resumen */}
+                  <Card className="bg-gradient-to-br from-primary/5 to-success/5 border border-default-200 shadow-md">
+                    <CardBody className="p-5">
+                      <div className="flex items-center gap-2.5 mb-4">
+                        <div className="p-2 bg-success/10 rounded-lg">
+                          <svg className="w-5 h-5 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-default-900">Resumen</h3>
+                          <p className="text-xs text-default-500">Verifica antes de finalizar</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-4 bg-white rounded-lg border border-default-200 shadow-sm">
+                          <p className="text-xs font-medium text-default-500 uppercase tracking-wide mb-1.5">Tipo</p>
+                          <p className="font-bold text-default-900">
+                            {offerType === 'package' ? '📦 Paquete' : offerType === 'hotel' ? '🏨 Hotel' : '✈️ Vuelo'}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-white rounded-lg border border-default-200 shadow-sm">
+                          <p className="text-xs font-medium text-default-500 uppercase tracking-wide mb-1.5">Estado</p>
+                          <p className="font-bold text-default-900">
+                            {status === 'draft' ? '📝 Borrador' : status === 'published' ? '🌐 Publicado' : '📦 Archivado'}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-white rounded-lg border border-default-200 shadow-sm">
+                          <p className="text-xs font-medium text-default-500 uppercase tracking-wide mb-1.5">Items</p>
+                          <p className="font-bold text-default-900">
+                            {items.length}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-white rounded-lg border border-default-200 shadow-sm">
+                          <p className="text-xs font-medium text-default-500 uppercase tracking-wide mb-1.5">Duración</p>
+                          <p className="font-bold text-default-900">
+                            {offerType === 'package' || offerType === 'hotel' ? `${nights}N / ${days}D` : 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 p-3 bg-gradient-to-r from-success/10 to-primary/10 border border-success/20 rounded-lg">
+                        <p className="text-xs text-default-700 flex items-center gap-2">
+                          <svg className="w-4 h-4 text-success flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span>
+                            {mode === 'create'
+                              ? 'Todo listo para crear tu oferta. Haz clic en el botón de abajo para finalizar.'
+                              : 'Todo listo para guardar los cambios. Haz clic en el botón de abajo para finalizar.'}
+                          </span>
+                        </p>
+                      </div>
+                    </CardBody>
+                  </Card>
+                </div>
+              </div>
             </div>
           )}
         </ModalBody>
@@ -1221,24 +1524,54 @@ export default function UnifiedOfferModal({
             {(() => {
               // Calcular precio total base sumando todos los items
               let totalBasePrice = 0
-              console.log("ITEMSSSSSS+",items)
+              
               for (const item of items) {
-                if (item.resourceType === 'Hotel' && item.hotelInfo?.rooms && item.hotelInfo.rooms.length > 0) {
-                  // Buscar precio más barato de habitación doble
-                  let cheapestPrice = null
-                  for (const room of item.hotelInfo.rooms) {
-                    if (room.capacityPrices?.double?.adult) {
-                      const price = room.capacityPrices.double.adult
-                      if (cheapestPrice === null || price < cheapestPrice) {
-                        cheapestPrice = price
+                if (item.resourceType === 'Hotel') {
+                  // Debug: ver estructura del item
+                  console.log('🏨 HOTEL ITEM:', {
+                    hotelInfo_rooms: item.hotelInfo?.rooms,
+                    inventory_rooms: item.inventory?.rooms,
+                    inventoryId_rooms: item.inventoryId?.rooms,
+                    full_item: item
+                  })
+                  
+                  // Buscar rooms en múltiples ubicaciones posibles
+                  const rooms = item.hotelInfo?.rooms || 
+                                item.inventory?.rooms || 
+                                item.inventoryId?.rooms || 
+                                []
+                  
+                  console.log('🔍 ROOMS ENCONTRADOS:', rooms)
+                  
+                  if (rooms.length > 0) {
+                    // Buscar precio más barato de habitación doble
+                    let cheapestPrice = null
+                    for (const room of rooms) {
+                      if (room.capacityPrices?.double?.adult) {
+                        const price = room.capacityPrices.double.adult
+                        if (cheapestPrice === null || price < cheapestPrice) {
+                          cheapestPrice = price
+                        }
                       }
                     }
-                  }
-                  if (cheapestPrice !== null && cheapestPrice > 0) {
-                    totalBasePrice += cheapestPrice
+                    if (cheapestPrice !== null && cheapestPrice > 0) {
+                      totalBasePrice += cheapestPrice
+                    }
                   }
                 }
-                // Aquí se pueden agregar otros tipos de items (Flight, Transport, etc.)
+                
+                // Agregar otros tipos de items
+                if (item.resourceType === 'Flight' && item.flightDetails?.basePrice) {
+                  totalBasePrice += item.flightDetails.basePrice
+                }
+                
+                if (item.resourceType === 'Transport' && item.transportInfo?.basePrice) {
+                  totalBasePrice += item.transportInfo.basePrice
+                }
+                
+                if (item.resourceType === 'Activity' && item.activityInfo?.basePrice) {
+                  totalBasePrice += item.activityInfo.basePrice
+                }
               }
               
               const totalSalePrice = totalBasePrice > 0 ? applyMarkup(totalBasePrice) : 0

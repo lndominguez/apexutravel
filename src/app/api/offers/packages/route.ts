@@ -22,10 +22,8 @@ export async function GET(request: NextRequest) {
     const featured = searchParams.get('featured')
     const destination = searchParams.get('destination')
 
-    // Construir query - Solo paquetes
-    const query: any = {
-      type: 'package'
-    }
+    // Construir query - Todas las ofertas (package, hotel, flight)
+    const query: any = {}
 
     if (search) {
       query.$text = { $search: search }

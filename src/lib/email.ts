@@ -7,6 +7,11 @@ const createTransporter = () => {
     throw new Error('Variables de entorno EMAIL_USER y EMAIL_PASS son requeridas')
   }
 
+  console.log('📧 Configurando transportador de email...')
+  console.log('Host:', process.env.EMAIL_HOST || 'smtp.gmail.com')
+  console.log('Port:', process.env.EMAIL_PORT || '587')
+  console.log('User:', process.env.EMAIL_USER)
+
   return nodemailer.createTransport({
     host: process.env.EMAIL_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.EMAIL_PORT || '587'),
@@ -15,6 +20,11 @@ const createTransporter = () => {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
+    tls: {
+      rejectUnauthorized: false // Evitar problemas con certificados
+    },
+    debug: true, // Habilitar debug
+    logger: true // Habilitar logging
   })
 }
 
@@ -29,21 +39,35 @@ interface EmailOptions {
 // Función principal para enviar emails
 export const sendEmail = async (options: EmailOptions) => {
   try {
+    console.log('📧 Iniciando envío de email...')
+    console.log('Para:', options.to)
+    console.log('Asunto:', options.subject)
+    
     const transporter = createTransporter()
     
     const mailOptions = {
-      from: `"${process.env.APP_NAME || 'CRM'}" <${process.env.EMAIL_FROM}>`,
+      from: `"${process.env.APP_NAME || 'ApexuTravel'}" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`,
       to: options.to,
       subject: options.subject,
       html: options.html,
       text: options.text || options.html.replace(/<[^>]*>/g, ''), // Fallback text
     }
 
+    console.log('📤 Enviando email desde:', mailOptions.from)
+    
     const result = await transporter.sendMail(mailOptions)
-    console.log('Email enviado exitosamente:', result.messageId)
+    console.log('✅ Email enviado exitosamente!')
+    console.log('Message ID:', result.messageId)
+    console.log('Response:', result.response)
+    
     return { success: true, messageId: result.messageId }
   } catch (error) {
-    console.error('Error enviando email:', error)
+    console.error('❌ Error enviando email:')
+    console.error('Error completo:', error)
+    if (error instanceof Error) {
+      console.error('Mensaje:', error.message)
+      console.error('Stack:', error.stack)
+    }
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }

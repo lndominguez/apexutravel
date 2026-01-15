@@ -7,14 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { SearchLayout } from '@/components/layout/SearchLayout'
 import { parseDate } from '@internationalized/date'
-
-// Capacidades máximas por tipo de ocupación
-const OCCUPANCY_LIMITS = {
-  single: { adults: 1, children: 0, infants: 0 },
-  double: { adults: 2, children: 1, infants: 1 },
-  triple: { adults: 3, children: 2, infants: 1 },
-  quad: { adults: 4, children: 2, infants: 2 }
-} as const
+import { RoomReservationsPanel } from '@/components/booking/RoomReservationsPanel'
 
 export default function PackageDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params)
@@ -23,27 +16,40 @@ export default function PackageDetailPage({ params }: { params: Promise<{ slug: 
   const carouselRef = useRef<HTMLDivElement>(null)
   
   // Estados del formulario de reserva
-  const [adults, setAdults] = useState(1)
-  const [children, setChildren] = useState(0)
-  const [infants, setInfants] = useState(0)
   const [startDate, setStartDate] = useState<any>(null)
   const [endDateManual, setEndDateManual] = useState<any>(null)
-  const [totalPrice, setTotalPrice] = useState(0)
   const [pkg, setPkg] = useState<any>(null)
   
-  // Estados para selección de habitación y ocupancy
-  const [selectedRoomIndex, setSelectedRoomIndex] = useState(0)
-  const [selectedOccupancy, setSelectedOccupancy] = useState<string>('single')
-  const [roomImageIndex, setRoomImageIndex] = useState(0)
+  // Sistema de múltiples habitaciones
+  interface RoomReservation {
+    id: string
+    roomIndex: number
+    occupancy: string
+    adults: number
+    children: number
+    infants: number
+  }
   
-  // Estado para selector de huéspedes
-  const [isGuestsOpen, setIsGuestsOpen] = useState(false)
+  const [roomReservations, setRoomReservations] = useState<RoomReservation[]>([])
+  
+  // Estados para vista de habitaciones disponibles
+  const [selectedRoomIndex, setSelectedRoomIndex] = useState(0)
+  const [roomImageIndex, setRoomImageIndex] = useState(0)
   
   // Extraer info de items[] para compatibilidad
   const hotelItem = pkg?.items?.find((item: any) => item.resourceType === 'Hotel')
   const hotelInfo = hotelItem?.hotelInfo
   const location = hotelInfo?.location
-  const images = pkg?.coverPhoto ? [pkg.coverPhoto, ...(hotelInfo?.photos || [])] : (hotelInfo?.photos || ['https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200'])
+  
+  // Filtrar coverPhoto duplicado: solo agregarlo si no está ya en las fotos del hotel
+  const hotelPhotos = hotelInfo?.photos || []
+  const coverPhoto = pkg?.coverPhoto
+  const images = coverPhoto && !hotelPhotos.includes(coverPhoto)
+    ? [coverPhoto, ...hotelPhotos]
+    : hotelPhotos.length > 0 
+      ? hotelPhotos 
+      : ['https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200']
+  
   const hotelAmenities = (hotelInfo as any)?.amenities || []
   
   // Las habitaciones ya vienen enriquecidas con fotos desde el endpoint
@@ -85,6 +91,65 @@ export default function PackageDetailPage({ params }: { params: Promise<{ slug: 
 
   const diffDaysUtc = (start: Date, end: Date) => Math.max(1, Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)))
 
+  // Funciones para manejar múltiples habitaciones (PACKAGES - precio combo, NO por noches)
+  const addRoomReservation = () => {
+    const newReservation: RoomReservation = {
+      id: `room-${Date.now()}`,
+      roomIndex: 0,
+      occupancy: selectedRooms[0]?.occupancy?.[0] || 'double',
+      adults: 2,
+      children: 0,
+      infants: 0
+    }
+    setRoomReservations([...roomReservations, newReservation])
+  }
+
+  const removeRoomReservation = (id: string) => {
+    setRoomReservations(roomReservations.filter(r => r.id !== id))
+  }
+
+  const updateRoomReservation = (id: string, updates: Partial<RoomReservation>) => {
+    setRoomReservations(roomReservations.map(r => 
+      r.id === id ? { ...r, ...updates } : r
+    ))
+  }
+
+  const calculateRoomPrice = (reservation: RoomReservation) => {
+    const room = selectedRooms[reservation.roomIndex]
+    if (!room?.capacityPrices?.[reservation.occupancy]) return 0
+
+    const prices = room.capacityPrices[reservation.occupancy]
+    // PACKAGES: precio combo (NO multiplicar por noches)
+    const comboPrice = 
+      (prices.adult * reservation.adults) +
+      (prices.child * reservation.children) +
+      (prices.infant * reservation.infants)
+
+    return comboPrice
+  }
+
+  const calculateTotalPrice = () => {
+    return roomReservations.reduce((total, reservation) => {
+      return total + calculateRoomPrice(reservation)
+    }, 0)
+  }
+
+  // Calcular totales de huéspedes
+  const totalGuests = roomReservations.reduce((sum, r) => ({
+    adults: sum.adults + r.adults,
+    children: sum.children + r.children,
+    infants: sum.infants + r.infants
+  }), { adults: 0, children: 0, infants: 0 })
+
+  // Validar que todas las habitaciones tengan al menos 1 persona (adulto o niño)
+  const isBookingValid = () => {
+    if (!startDate) return false
+    if (roomReservations.length === 0) return false
+    
+    // Verificar que cada habitación tenga al menos 1 persona
+    return roomReservations.every(room => (room.adults + room.children) >= 1)
+  }
+
   
   // Fetch del paquete usando API pública
   const [isLoading, setIsLoading] = useState(true)
@@ -110,6 +175,22 @@ export default function PackageDetailPage({ params }: { params: Promise<{ slug: 
             const calculatedEndDate = new Date(validFromDate.getTime() + (packageDuration * 24 * 60 * 60 * 1000))
             setEndDateManual(parseDate(calculatedEndDate.toISOString().split('T')[0]))
           }
+
+          // Inicializar con una habitación por defecto para mostrar precio desde el inicio
+          const packageRooms = data.data?.items?.find((item: any) => item.resourceType === 'Hotel')?.selectedRooms
+          if (packageRooms && packageRooms.length > 0) {
+            const defaultRoom = packageRooms[0]
+            const defaultOccupancy = defaultRoom?.occupancy?.[0] || 'double'
+            
+            setRoomReservations([{
+              id: `room-${Date.now()}`,
+              roomIndex: 0,
+              occupancy: defaultOccupancy,
+              adults: 2,
+              children: 0,
+              infants: 0
+            }])
+          }
         }
       } catch (error) {
         console.error('Error fetching package:', error)
@@ -119,94 +200,6 @@ export default function PackageDetailPage({ params }: { params: Promise<{ slug: 
     }
     fetchPackage()
   }, [resolvedParams.slug])
-
-
-  useEffect(() => {
-    const defaultRoom = selectedRooms?.[0]
-    if (!defaultRoom?.capacityPrices) {
-      return
-    }
-    
-    // Detectar qué ocupaciones están disponibles basándose en capacityPrices
-    const availableOccupancies = Object.keys(defaultRoom.capacityPrices)
-    
-    if (availableOccupancies.length === 0) return
-    
-    // Preferir 'double' si está disponible, sino usar la primera disponible
-    const defaultOccupancy = availableOccupancies.includes('double') 
-      ? 'double' 
-      : availableOccupancies[0]
-    
-    setSelectedOccupancy(defaultOccupancy)
-  }, [pkg])
-
-  // Ajustar cantidad de personas cuando cambia la ocupación
-  useEffect(() => {
-    const limits = getMaxCapacity(selectedOccupancy)
-    
-    // Ajustar adultos si excede el límite
-    if (adults > limits.adults) {
-      setAdults(limits.adults)
-    }
-    
-    // Ajustar niños si excede el límite
-    if (children > limits.children) {
-      setChildren(limits.children)
-    }
-    
-    // Ajustar infantes si excede el límite
-    if (infants > limits.infants) {
-      setInfants(limits.infants)
-    }
-  }, [selectedOccupancy])
-
-  // Calcular precio total cuando cambian los valores
-  // IMPORTANTE: Para paquetes, el precio NO se multiplica por noches, pero SÍ por cantidad de personas
-  useEffect(() => {
-    if (!selectedRooms || selectedRooms.length === 0) return
-    
-    const selectedRoom = selectedRooms[selectedRoomIndex]
-    if (!selectedRoom?.capacityPrices) return
-    
-    // Obtener el precio según la ocupación seleccionada (single/double/triple/quad)
-    const priceForOccupancy = selectedRoom.capacityPrices[selectedOccupancy]
-    
-    if (!priceForOccupancy) {
-      setTotalPrice(0)
-      return
-    }
-    
-    // Calcular precio total multiplicando por cantidad de personas
-    // Los capacityPrices ya incluyen el markup aplicado al crear la oferta
-    const adultPrice = (priceForOccupancy.adult || 0) * adults
-    const childPrice = (priceForOccupancy.child || 0) * children
-    const infantPrice = (priceForOccupancy.infant || 0) * infants
-    
-    const total = adultPrice + childPrice + infantPrice
-    
-    setTotalPrice(total)
-  }, [selectedRoomIndex, selectedOccupancy, selectedRooms, adults, children, infants])
-
-  // Validación de capacidad
-  const getMaxCapacity = (occupancy: string) => {
-    return OCCUPANCY_LIMITS[occupancy as keyof typeof OCCUPANCY_LIMITS] || OCCUPANCY_LIMITS.single
-  }
-
-  const isValidCapacity = () => {
-    const limits = getMaxCapacity(selectedOccupancy)
-    return adults <= limits.adults && children <= limits.children && infants <= limits.infants
-  }
-
-  const getCapacityError = () => {
-    const limits = getMaxCapacity(selectedOccupancy)
-    const errors = []
-    
-    if (adults > limits.adults) errors.push(`máximo ${limits.adults} adulto${limits.adults > 1 ? 's' : ''}`)
-    if (children > limits.children) errors.push(`máximo ${limits.children} niño${limits.children > 1 ? 's' : ''}`)
-    if (infants > limits.infants) errors.push(`máximo ${limits.infants} infante${limits.infants > 1 ? 's' : ''}`)
-    
-    return errors.length > 0 ? `Ocupación ${selectedOccupancy}: ${errors.join(', ')}` : null
-  }
 
   if (isLoading) {
     return (
@@ -432,29 +425,6 @@ export default function PackageDetailPage({ params }: { params: Promise<{ slug: 
                       )}
                     </div>
 
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-700 mb-1">Ocupación</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedRooms[selectedRoomIndex]?.capacityPrices && Object.keys(selectedRooms[selectedRoomIndex].capacityPrices).length > 0 ? (
-                          Object.keys(selectedRooms[selectedRoomIndex].capacityPrices).map((occ: string) => (
-                            <Button
-                              key={occ}
-                              size="sm"
-                              variant={selectedOccupancy === occ ? "solid" : "bordered"}
-                              className={selectedOccupancy === occ ? "bg-[#0c3f5b] text-white" : ""}
-                              onPress={() => setSelectedOccupancy(occ)}
-                            >
-                              {occ === 'single' ? 'Simple' :
-                               occ === 'double' ? 'Doble' :
-                               occ === 'triple' ? 'Triple' :
-                               occ === 'quad' ? 'Cuádruple' : occ}
-                            </Button>
-                          ))
-                        ) : (
-                          <p className="text-sm text-gray-500">No hay tipos de ocupación disponibles</p>
-                        )}
-                      </div>
-                    </div>
                   </CardBody>
                 </Card>
 
@@ -699,37 +669,36 @@ export default function PackageDetailPage({ params }: { params: Promise<{ slug: 
                       <span className="text-white/60 text-xs font-semibold uppercase tracking-wider">Total</span>
                     </div>
                     
-                    {selectedRooms[selectedRoomIndex] && (
+                    {roomReservations.length > 0 && (
                       <div className="mb-4">
                         <Chip size="sm" className="bg-white/10 text-white border border-white/20">
                           <div className="flex items-center gap-1">
                             <Bed size={12} />
-                            <span className="text-xs">{selectedRooms[selectedRoomIndex].name}</span>
+                            <span className="text-xs">{roomReservations.length} {roomReservations.length === 1 ? 'habitación' : 'habitaciones'}</span>
                           </div>
                         </Chip>
                       </div>
                     )}
                     
-                    <div className="mb-2 overflow-x-auto">
-                      <div className="flex items-baseline gap-3 w-fit">
-                        <span className="font-black text-white tracking-tight tabular-nums text-5xl sm:text-6xl whitespace-nowrap">
-                          ${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Math.floor(totalPrice))}
+                    <div className="mb-2">
+                      <div className="flex items-end gap-2 flex-wrap">
+                        <span className="text-4xl font-black text-white tracking-tight break-all">
+                          ${Math.floor(calculateTotalPrice()).toLocaleString('en-US')}
                         </span>
-                        <span className="font-bold text-white/50 text-xl sm:text-2xl whitespace-nowrap">
+                        <span className="text-xl font-bold text-white/40 mb-1">
                           USD
                         </span>
                       </div>
                     </div>
                     
                     <div className="flex items-center gap-2 text-white/60 text-sm">
-                      {selectedOccupancy && (
+                      {totalGuests.adults + totalGuests.children + totalGuests.infants > 0 && (
                         <>
                           <Users size={14} />
                           <span>
-                            {selectedOccupancy === 'single' ? 'Simple' :
-                             selectedOccupancy === 'double' ? 'Doble' :
-                             selectedOccupancy === 'triple' ? 'Triple' :
-                             selectedOccupancy === 'quad' ? 'Cuádruple' : selectedOccupancy}
+                            {totalGuests.adults} {totalGuests.adults === 1 ? 'adulto' : 'adultos'}
+                            {totalGuests.children > 0 && `, ${totalGuests.children} ${totalGuests.children === 1 ? 'niño' : 'niños'}`}
+                            {totalGuests.infants > 0 && `, ${totalGuests.infants} ${totalGuests.infants === 1 ? 'infante' : 'infantes'}`}
                           </span>
                         </>
                       )}
@@ -790,120 +759,17 @@ export default function PackageDetailPage({ params }: { params: Promise<{ slug: 
                     )}
                   </div>
 
-                  {/* Selector de huéspedes con Popover */}
-                  <div>
-                    <label className="text-sm font-bold text-gray-900 mb-3 block">Huéspedes</label>
-                    <Popover placement="bottom" isOpen={isGuestsOpen} onOpenChange={setIsGuestsOpen}>
-                      <PopoverTrigger>
-                        <button className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-xl border-2 border-gray-200 hover:border-[#0c3f5b] transition-colors">
-                          <div className="flex items-center gap-2">
-                            <Users size={16} className="text-[#0c3f5b]" />
-                            <div className="flex items-center gap-2 text-sm">
-                              <span className="font-semibold text-gray-900">{adults} adulto{adults !== 1 ? 's' : ''}</span>
-                              {(children > 0 || infants > 0) && (
-                                <>
-                                  <span className="text-gray-400">•</span>
-                                  {children > 0 && <span className="text-gray-700">{children} niño{children !== 1 ? 's' : ''}</span>}
-                                  {children > 0 && infants > 0 && <span className="text-gray-400">•</span>}
-                                  {infants > 0 && <span className="text-gray-700">{infants} infante{infants !== 1 ? 's' : ''}</span>}
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          <ChevronRight size={16} className={`text-gray-400 transition-transform ${isGuestsOpen ? 'rotate-90' : ''}`} />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-80">
-                        <div className="p-4 space-y-4">
-                          {!isValidCapacity() && (
-                            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                              <p className="text-xs text-red-700 font-medium">
-                                ⚠️ {getCapacityError()}
-                              </p>
-                            </div>
-                          )}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-[#0c3f5b] rounded-lg">
-                                <Users size={16} className="text-white" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-semibold text-gray-800">Adultos</p>
-                                <p className="text-xs text-gray-500">Mayores de 18 años</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button isIconOnly size="sm" variant="flat" className="min-w-8 h-8" onPress={() => setAdults(Math.max(1, adults - 1))}>
-                                <Minus size={14} />
-                              </Button>
-                              <span className="w-8 text-center font-bold text-gray-900">{adults}</span>
-                              <Button 
-                                isIconOnly 
-                                size="sm" 
-                                className="bg-[#0c3f5b] text-white min-w-8 h-8" 
-                                onPress={() => setAdults(Math.min(getMaxCapacity(selectedOccupancy).adults, adults + 1))}
-                                isDisabled={adults >= getMaxCapacity(selectedOccupancy).adults}
-                              >
-                                <Plus size={14} />
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-[#ec9c12] rounded-lg">
-                                <Baby size={16} className="text-white" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-semibold text-gray-800">Niños</p>
-                                <p className="text-xs text-gray-500">2-17 años</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button isIconOnly size="sm" variant="flat" className="min-w-8 h-8" onPress={() => setChildren(Math.max(0, children - 1))}>
-                                <Minus size={14} />
-                              </Button>
-                              <span className="w-8 text-center font-bold text-gray-900">{children}</span>
-                              <Button 
-                                isIconOnly 
-                                size="sm" 
-                                className="bg-[#ec9c12] text-white min-w-8 h-8" 
-                                onPress={() => setChildren(Math.min(getMaxCapacity(selectedOccupancy).children, children + 1))}
-                                isDisabled={children >= getMaxCapacity(selectedOccupancy).children}
-                              >
-                                <Plus size={14} />
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-[#f1c203] rounded-lg">
-                                <Baby size={16} className="text-white" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-semibold text-gray-800">Infantes</p>
-                                <p className="text-xs text-gray-500">Menores de 2 años</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button isIconOnly size="sm" variant="flat" className="min-w-8 h-8" onPress={() => setInfants(Math.max(0, infants - 1))}>
-                                <Minus size={14} />
-                              </Button>
-                              <span className="w-8 text-center font-bold text-gray-900">{infants}</span>
-                              <Button 
-                                isIconOnly 
-                                size="sm" 
-                                className="bg-[#f1c203] text-white min-w-8 h-8" 
-                                onPress={() => setInfants(Math.min(getMaxCapacity(selectedOccupancy).infants, infants + 1))}
-                                isDisabled={infants >= getMaxCapacity(selectedOccupancy).infants}
-                              >
-                                <Plus size={14} />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                  {/* Panel de habitaciones múltiples */}
+                  <RoomReservationsPanel
+                    selectedRooms={selectedRooms}
+                    roomReservations={roomReservations}
+                    duration={duration}
+                    isPackage={true}
+                    onAddRoom={addRoomReservation}
+                    onRemoveRoom={removeRoomReservation}
+                    onUpdateRoom={updateRoomReservation}
+                    calculateRoomPrice={calculateRoomPrice}
+                  />
 
                   {/* Divider */}
                   <div className="border-t border-gray-200"></div>
@@ -914,56 +780,41 @@ export default function PackageDetailPage({ params }: { params: Promise<{ slug: 
                     size="lg"
                     onPress={() => {
                       if (!startDate) {
-                        alert('Por favor selecciona tu fecha de ida')
+                        alert('Por favor selecciona la fecha de inicio del paquete')
                         return
                       }
-
-                      if (!isValidCapacity()) {
-                        alert(getCapacityError() || 'La cantidad de personas excede la capacidad de la habitación')
+                      if (roomReservations.length === 0) {
+                        alert('Por favor agrega al menos una habitación')
                         return
                       }
-
-                      const computedEndDate = (() => {
-                        if (endDateManual) return endDateManual
-                        const start = toUtcMidnight(startDate)
-                        if (!start) return null
-                        const daysToAdd = duration?.days || 5
-                        const end = addDaysUtc(start, daysToAdd)
-                        return parseDate(end.toISOString().split('T')[0])
-                      })()
-
-                      if (!computedEndDate) {
-                        alert('No se pudo calcular la fecha de retorno')
+                      // Validar que cada habitación tenga al menos 1 persona
+                      const invalidRooms = roomReservations.filter(r => (r.adults + r.children) < 1)
+                      if (invalidRooms.length > 0) {
+                        alert('Cada habitación debe tener al menos 1 persona (adulto o niño)')
                         return
                       }
-
+                      // Calcular totales de huéspedes para el checkout
+                      const totalAdults = roomReservations.reduce((sum, r) => sum + r.adults, 0)
+                      const totalChildren = roomReservations.reduce((sum, r) => sum + r.children, 0)
+                      const totalInfants = roomReservations.reduce((sum, r) => sum + r.infants, 0)
+                      
                       const params = new URLSearchParams({
                         type: 'package',
-                        itemId: pkg.slug,
+                        id: pkg.slug,
                         startDate: startDate.toString(),
-                        endDate: computedEndDate.toString(),
-                        adults: adults.toString(),
-                        children: children.toString(),
-                        infants: infants.toString(),
-                        roomIndex: selectedRoomIndex.toString(),
-                        occupancy: selectedOccupancy,
-                        totalPrice: totalPrice.toString()
+                        adults: totalAdults.toString(),
+                        children: totalChildren.toString(),
+                        infants: totalInfants.toString(),
+                        roomReservations: JSON.stringify(roomReservations),
+                        totalPrice: calculateTotalPrice().toString()
                       })
                       router.push(`/checkout?${params.toString()}`)
                     }}
-                    isDisabled={!startDate || !isValidCapacity()}
+                    isDisabled={!isBookingValid()}
                     startContent={<Check size={20} />}
                   >
                     Reservar ahora
                   </Button>
-                  
-                  {!isValidCapacity() && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-xs text-red-700 font-medium text-center">
-                        ⚠️ {getCapacityError()}
-                      </p>
-                    </div>
-                  )}
 
                   {/* Garantías compactas */}
                   <div className="grid grid-cols-3 gap-2 pt-2">
