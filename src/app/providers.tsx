@@ -7,6 +7,7 @@ import { Toaster } from 'sonner'
 import { GlobalLoading } from '@/components/GlobalLoading'
 import { ClientThemeProvider } from '@/components/ClientThemeProvider'
 import { ThemeProvider } from '@/providers/ThemeProvider'
+import { PushNotificationInitializer } from '@/components/notifications/PushNotificationInitializer'
 import type { Session } from 'next-auth'
 
 /**
@@ -60,7 +61,8 @@ export function Providers({ children, session }: {
           <ClientThemeProvider>
             <ThemeProvider>
               <GlobalLoading>
-                <Toaster position="top-right" richColors closeButton />
+                <Toaster position="top-right" offset={72} richColors closeButton />
+                <PushNotificationInitializer />
                 {children}
               </GlobalLoading>
             </ThemeProvider>

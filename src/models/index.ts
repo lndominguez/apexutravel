@@ -34,3 +34,9 @@ export { default as InventoryTransport } from './InventoryTransport'
 // Modelos de ofertas
 export { default as OfferPackage } from './OfferPackage'
 export type { IOfferPackage } from './OfferPackage'
+
+// Modelos de notificaciones
+export { default as Notification } from './Notification'
+export type { INotification } from './Notification'
+export { NotificationType, NotificationPriority } from './Notification'
+export type { NotificationAction } from './Notification'

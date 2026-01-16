@@ -22,10 +22,12 @@ import {
   Mail,
   Phone,
   Briefcase,
-  Shield
+  Shield,
+  Bell
 } from 'lucide-react'
 import { CRMLayout } from '@/components/layout/CRMLayout'
 import { ProfileSkeleton } from '@/components/ContentSkeleton'
+import { PushNotificationToggle } from '@/components/notifications'
 
 export default function ProfilePage() {
   const { user, isLoading, updateProfile, refreshSession, isAuthenticated } = useAuth()
@@ -333,6 +335,19 @@ export default function ProfilePage() {
                   {(user as any).isActive ? 'Activo' : 'Inactivo'}
                 </Chip>
               </div>
+            </CardBody>
+          </Card>
+
+          {/* Notificaciones Push */}
+          <Card>
+            <CardHeader>
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Bell size={20} />
+                Notificaciones
+              </h3>
+            </CardHeader>
+            <CardBody>
+              <PushNotificationToggle />
             </CardBody>
           </Card>
         </div>

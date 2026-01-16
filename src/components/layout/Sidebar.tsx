@@ -19,6 +19,7 @@ import {
   Car,
   MapPin,
   Search,
+  Bell,
   X,
   ChevronLeft,
   ChevronRight,
@@ -143,6 +144,15 @@ const navigationSections: NavigationSection[] = [
         current: false,
         badge: null,
         description: 'Gestión de usuarios',
+        requiresPermission: 'admin'
+      },
+      {
+        name: 'Notificaciones',
+        href: '/admin/notifications',
+        icon: Bell,
+        current: false,
+        badge: null,
+        description: 'Panel de notificaciones',
         requiresPermission: 'admin'
       },
       {

@@ -20,6 +20,7 @@ import { useCurrentUser } from '@/swr/useCurrentUser'
 import { useTheme } from '@/providers/ThemeProvider'
 import { ThemeMode, ColorScheme } from '@/types/user'
 import { Logo } from '@/components/common/Logo'
+import { NotificationCenter } from '@/components/notifications'
 
 
 interface TopBarProps {
@@ -78,6 +79,9 @@ export function TopBar({ onMenuClick, isCollapsed }: TopBarProps) {
           >
             {theme === ThemeMode.DARK ? <Sun size={16} /> : <Moon size={16} />}
           </Button>
+
+          {/* Notifications */}
+          <NotificationCenter />
 
           {/* User info */}
           <div className="hidden md:flex flex-col items-end">

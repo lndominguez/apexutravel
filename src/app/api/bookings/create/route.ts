@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import connectDB from '@/lib/db/mongoose'
 import { Booking } from '@/models/Booking'
 import { sendBookingConfirmationClient, sendBookingNotificationAdmin } from '@/lib/email'
+import { notifyNewBooking, notifyAdminNewBooking } from '@/lib/notifications'
+import { User } from '@/models'
 
 export async function POST(request: NextRequest) {
   try {
@@ -156,6 +158,55 @@ export async function POST(request: NextRequest) {
     } catch (emailError) {
       console.error('Error enviando email al admin:', emailError)
       // No fallar la reserva si el email falla
+    }
+    
+    let customerUser: any = null
+    try {
+      customerUser = await User.findOne({ email: contactInfo.email }).select('_id')
+    } catch {
+      customerUser = null
+    }
+
+    try {
+      if (customerUser) {
+        await notifyNewBooking({
+          userId: customerUser._id,
+          bookingNumber: booking.bookingNumber,
+          bookingId: booking._id.toString(),
+          itemName,
+          itemType: type,
+          totalPrice: pricing.total,
+          currency: 'USD'
+        })
+        console.log('✅ Notificación de reserva enviada al cliente')
+      }
+    } catch (notifError) {
+      console.error('Error creando notificación para cliente:', notifError)
+      // No fallar la reserva si la notificación falla
+    }
+    
+    try {
+      const adminUsers = await User.find({ 
+        role: { $in: ['admin', 'super_admin'] },
+        isActive: true 
+      })
+      
+      for (const admin of adminUsers) {
+        await notifyAdminNewBooking({
+          adminUserId: admin._id,
+          createdBy: customerUser?._id,
+          bookingNumber: booking.bookingNumber,
+          bookingId: booking._id.toString(),
+          customerName: passengers[0]?.fullName || 'Cliente',
+          itemName,
+          totalPrice: pricing.total,
+          currency: 'USD'
+        })
+      }
+      console.log(`✅ Notificaciones enviadas a ${adminUsers.length} administradores`)
+    } catch (notifError) {
+      console.error('Error creando notificaciones para admins:', notifError)
+      // No fallar la reserva si las notificaciones fallan
     }
     
     return NextResponse.json({

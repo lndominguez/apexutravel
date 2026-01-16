@@ -57,6 +57,7 @@ export interface IUser extends Document {
   notes?: string; // Notas administrativas
   resetPasswordToken?: string; // Token para reset de password
   resetPasswordExpires?: Date; // Expiración del token de reset
+  fcmTokens?: string[]; // Tokens de Firebase Cloud Messaging para push notifications
   createdAt: Date;
   updatedAt: Date;
 
@@ -174,6 +175,10 @@ const UserSchema = new Schema<IUser>(
     resetPasswordExpires: {
       type: Date,
       select: false
+    },
+    fcmTokens: {
+      type: [String],
+      default: []
     }
   },
   {

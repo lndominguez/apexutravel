@@ -4,7 +4,9 @@
 // Hooks SWR
 export { useCurrentUser } from './useCurrentUser' // Restaurado para tiempo real
 export { useAdminUsers } from './useAdminUsers'
+export { useAdminNotifications } from './useAdminNotifications'
 export { useDashboardStats } from './useDashboardStats'
+export { useNotifications, useUnreadCount } from './useNotifications'
 
 // Hooks de inventario
 export { useSuppliers, useSupplier } from '@/swr/useSuppliers'
