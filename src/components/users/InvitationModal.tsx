@@ -47,7 +47,7 @@ export function InvitationModal({ isOpen, onClose, onGenerate }: InvitationModal
     role: 'agent',
     department: '',
     position: '',
-    expiresInDays: 7
+    expiresInDays: 1
   })
   const [loading, setLoading] = useState(false)
   const [generatedInvitation, setGeneratedInvitation] = useState<any>(null)
@@ -103,7 +103,7 @@ export function InvitationModal({ isOpen, onClose, onGenerate }: InvitationModal
       role: 'agent',
       department: '',
       position: '',
-      expiresInDays: 7
+      expiresInDays: 1
     })
     setGeneratedInvitation(null)
     setErrors({})
@@ -208,7 +208,7 @@ export function InvitationModal({ isOpen, onClose, onGenerate }: InvitationModal
                   max="30"
                   startContent={<Calendar size={16} />}
                   value={formData.expiresInDays.toString()}
-                  onChange={(e) => handleInputChange('expiresInDays', parseInt(e.target.value) || 7)}
+                  onChange={(e) => handleInputChange('expiresInDays', parseInt(e.target.value) || 1)}
                   isInvalid={!!errors.expiresInDays}
                   errorMessage={errors.expiresInDays}
                   description="La invitación expirará después de este número de días"

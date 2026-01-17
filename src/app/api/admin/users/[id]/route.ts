@@ -156,55 +156,131 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    console.log('🔍 DELETE /api/admin/users/[id] - Iniciando...')
+    
     const session = await auth()
+    console.log('🔐 Session:', { 
+      hasSession: !!session, 
+      userId: session?.user?.id,
+      userEmail: session?.user?.email 
+    })
     
     if (!session?.user?.id) {
+      console.log('❌ No hay sesión válida')
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
     const { id } = await params
+    console.log('🎯 ID a eliminar:', id)
     
-    // Solo super admins pueden eliminar usuarios
+    // Leer el body para obtener la contraseña de super admin
+    const body = await request.json().catch(() => ({}))
+    const { superAdminPassword } = body
+    
+    // Conectar a la base de datos primero
+    console.log('🔌 Conectando a la base de datos...')
+    await connectToDatabase()
+    console.log('✅ Base de datos conectada')
+    
+    // Solo super admins y admins pueden eliminar usuarios
+    console.log('👤 Buscando usuario actual:', session.user.id)
     const currentUser = await User.findById(session.user.id)
-    if (!currentUser || currentUser.role !== UserRole.SUPER_ADMIN) {
-      return NextResponse.json({ error: 'Sin permisos suficientes' }, { status: 403 })
+    console.log('👤 Usuario actual:', { 
+      found: !!currentUser, 
+      role: currentUser?.role,
+      email: currentUser?.email 
+    })
+    
+    if (!currentUser || ![UserRole.SUPER_ADMIN, UserRole.ADMIN].includes(currentUser.role)) {
+      console.log('❌ Sin permisos - Role:', currentUser?.role, 'Required: super_admin or admin')
+      return NextResponse.json({ error: 'Sin permisos suficientes. Solo administradores pueden eliminar usuarios.' }, { status: 403 })
     }
 
-    await connectToDatabase()
+    // Si no es super_admin, exigir password de super_admin
+    if (currentUser.role !== UserRole.SUPER_ADMIN) {
+      if (!superAdminPassword || typeof superAdminPassword !== 'string') {
+        return NextResponse.json(
+          { error: 'Se requiere la contraseña del super administrador para eliminar usuarios' },
+          { status: 403 }
+        )
+      }
 
+      const superAdmin = await User.findOne({
+        role: UserRole.SUPER_ADMIN,
+        isActive: true
+      }).select('+password')
+
+      if (!superAdmin) {
+        return NextResponse.json(
+          { error: 'No se encontró super administrador en el sistema' },
+          { status: 500 }
+        )
+      }
+
+      const isPasswordValid = await superAdmin.comparePassword(superAdminPassword)
+      if (!isPasswordValid) {
+        return NextResponse.json(
+          { error: 'Contraseña de super administrador incorrecta' },
+          { status: 403 }
+        )
+      }
+    }
+
+    console.log('✅ Usuario autorizado para eliminar:', currentUser.role)
+
+    console.log('🔍 Buscando usuario a eliminar:', id)
     const userToDelete = await User.findById(id)
+    console.log('🔍 Usuario a eliminar:', { 
+      found: !!userToDelete, 
+      email: userToDelete?.email,
+      role: userToDelete?.role 
+    })
+    
     if (!userToDelete) {
+      console.log('❌ Usuario no encontrado')
       return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
+    }
+
+    // Solo super_admin puede eliminar un super_admin
+    if (userToDelete.role === UserRole.SUPER_ADMIN && currentUser.role !== UserRole.SUPER_ADMIN) {
+      return NextResponse.json(
+        { error: 'Solo el super administrador puede eliminar otro super administrador' },
+        { status: 403 }
+      )
     }
 
     // No permitir eliminar el último super admin
     if (userToDelete.role === UserRole.SUPER_ADMIN) {
+      console.log('⚠️ Intentando eliminar super admin, verificando conteo...')
       const superAdminCount = await User.countDocuments({ 
         role: UserRole.SUPER_ADMIN, 
         isActive: true 
       })
+      console.log('📊 Super admins activos:', superAdminCount)
+      
       if (superAdminCount <= 1) {
+        console.log('❌ No se puede eliminar el último super admin')
         return NextResponse.json(
-          { error: 'No se puede eliminar el último super administrador' },
+          { error: 'No se puede eliminar el último super administrador del sistema' },
           { status: 400 }
         )
       }
     }
 
-    // Soft delete - marcar como inactivo
-    await User.findByIdAndUpdate(id, { 
-      isActive: false,
-      email: `deleted_${Date.now()}_${userToDelete.email}` // Evitar conflictos de email único
-    })
+    // Hard delete - eliminar del sistema
+    console.log('🗑️ Realizando hard delete...')
+    const result = await User.findByIdAndDelete(id)
+    console.log('✅ Usuario eliminado:', { success: !!result })
 
     return NextResponse.json({
       message: 'Usuario eliminado exitosamente'
     })
 
   } catch (error) {
-    console.error('Error al eliminar usuario:', error)
+    console.error('💥 Error al eliminar usuario:', error)
+    console.error('💥 Error stack:', error instanceof Error ? error.stack : 'No stack')
     return NextResponse.json(
-      { error: 'Error al eliminar usuario' },
+      { error: 'Error al eliminar usuario', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }

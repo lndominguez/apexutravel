@@ -48,6 +48,15 @@ import { CRMLayout } from '@/components/layout/CRMLayout'
 import { UserModal } from '@/components/users/UserModal'
 import { InvitationModal } from '@/components/users/InvitationModal'
 import { TableSkeleton } from '@/components/ContentSkeleton'
+import { useToast } from '@/hooks/useToast'
+import { Toast, ToastContainer } from '@/components/ui/Toast'
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter
+} from '@heroui/react'
 
 export default function UsersPage() {
   const { user: currentUser, isLoading: userLoading, isAuthenticated } = useAuth()
@@ -69,7 +78,8 @@ export default function UsersPage() {
     createUser: createUserAction,
     updateUser: updateUserAction,
     deleteUser: deleteUserAction,
-    generateInvitation: generateInvitationAction
+    generateInvitation: generateInvitationAction,
+    resendInvitation: resendInvitationAction
   } = useAdminUsers({
     page: 1,
     limit: 50,
@@ -82,6 +92,13 @@ export default function UsersPage() {
   // Estados para modales
   const [userModalOpen, setUserModalOpen] = useState(false)
   const [invitationModalOpen, setInvitationModalOpen] = useState(false)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<any>(null)
+  const [superAdminPassword, setSuperAdminPassword] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
+  
+  // Toast notifications
+  const toast = useToast()
   
   // Estados para edición
   const [isEditing, setIsEditing] = useState(false)
@@ -100,7 +117,7 @@ export default function UsersPage() {
     const matchesStatus = selectedStatus === 'all' || 
       (selectedStatus === 'active' && user.isActive) ||
       (selectedStatus === 'inactive' && !user.isActive) ||
-      (selectedStatus === 'pending' && !user.isEmailVerified)
+      (selectedStatus === 'pending' && !user.isActive && user.hasInvitation)
     
     return matchesSearch && matchesRole && matchesStatus
   }) || []
@@ -131,36 +148,76 @@ export default function UsersPage() {
 
   const handleSaveUser = async (userData: any) => {
     try {
-      // Solo para crear usuarios (modal)
       await createUserAction(userData)
       setUserModalOpen(false)
-      // Los datos se actualizan automáticamente
+      toast.success('Usuario creado exitosamente')
     } catch (error) {
       console.error('Error al crear usuario:', error)
+      toast.error('Error al crear usuario')
     }
   }
 
-  const handleDeleteUser = async (userId: string) => {
-    if (confirm('¿Estás seguro de que quieres eliminar este usuario?')) {
-      try {
-        await deleteUserAction(userId)
-        if (selectedUser?._id === userId) {
-          setSelectedUser(null)
-        }
-        // Los datos se actualizan automáticamente
-      } catch (error) {
-        console.error('Error al eliminar usuario:', error)
+  const handleDeleteUser = (user: any) => {
+    setUserToDelete(user)
+    setSuperAdminPassword('')
+    setDeleteModalOpen(true)
+  }
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return
+
+    if (currentUser?.role !== 'super_admin' && !superAdminPassword) {
+      toast.error('Debes ingresar la contraseña del super administrador')
+      return
+    }
+    
+    setIsDeleting(true)
+    
+    try {
+      await deleteUserAction(userToDelete._id, superAdminPassword || undefined)
+      if (selectedUser?._id === userToDelete._id) {
+        setSelectedUser(null)
       }
+      toast.success('Usuario eliminado exitosamente')
+      setDeleteModalOpen(false)
+      setUserToDelete(null)
+      setSuperAdminPassword('')
+    } catch (error) {
+      console.error('Error al eliminar usuario:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Error al eliminar usuario'
+      toast.error(errorMessage)
+    } finally {
+      setIsDeleting(false)
     }
   }
 
   const handleGenerateInvitation = async (invitationData: any) => {
     try {
-      await generateInvitationAction(invitationData)
+      const result = await generateInvitationAction(invitationData)
       setInvitationModalOpen(false)
-      // Los datos se actualizan automáticamente
+      if (result?.emailSent) {
+        toast.success('Invitación enviada exitosamente por email')
+      } else {
+        toast.info('Invitación creada. Copia el link manualmente.')
+      }
     } catch (error) {
       console.error('Error al generar invitación:', error)
+      toast.error('Error al generar invitación')
+    }
+  }
+
+  const handleResendInvitation = async (userId: string) => {
+    try {
+      const result = await resendInvitationAction(userId)
+      if (result?.emailSent) {
+        toast.success('Invitación reenviada exitosamente por email')
+      } else {
+        toast.warning('No se pudo enviar el email. Verifica la configuración de correo.')
+      }
+    } catch (error) {
+      console.error('Error al reenviar invitación:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Error al reenviar invitación'
+      toast.error(errorMessage)
     }
   }
 
@@ -168,12 +225,13 @@ export default function UsersPage() {
     if (!selectedUser) return
     
     try {
-      await updateUserAction(selectedUser.id, editData)
+      await updateUserAction(selectedUser._id, editData)
       setSelectedUser({ ...selectedUser, ...editData })
       setIsEditing(false)
-      // Los datos se actualizan automáticamente
+      toast.success('Perfil actualizado exitosamente')
     } catch (error) {
       console.error('Error al actualizar perfil:', error)
+      toast.error('Error al actualizar perfil')
     }
   }
 
@@ -184,22 +242,23 @@ export default function UsersPage() {
       await updateUserAction(selectedUser._id, { password: newPassword })
       setNewPassword('')
       setConfirmPassword('')
-      alert('Contraseña actualizada exitosamente')
+      toast.success('Contraseña actualizada exitosamente')
     } catch (error) {
       console.error('Error al cambiar contraseña:', error)
+      toast.error('Error al cambiar contraseña')
     }
   }
 
-  const getStatusColor = (isActive: boolean, isEmailVerified: boolean) => {
-    if (!isActive) return 'danger'
-    if (!isEmailVerified) return 'warning'
-    return 'success'
+  const getStatusColor = (user: any) => {
+    if (user.isActive) return 'success'
+    if (user.hasInvitation) return 'warning'
+    return 'danger'
   }
 
-  const getStatusLabel = (isActive: boolean, isEmailVerified: boolean) => {
-    if (!isActive) return 'Inactivo'
-    if (!isEmailVerified) return 'Pendiente'
-    return 'Activo'
+  const getStatusLabel = (user: any) => {
+    if (user.isActive) return 'Activo'
+    if (user.hasInvitation) return 'Pendiente'
+    return 'Inactivo'
   }
 
   const getRoleColor = (role: string) => {
@@ -292,7 +351,7 @@ export default function UsersPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Pendientes</p>
-                  <p className="text-2xl font-bold text-warning">{users?.filter((u: any) => !u.isEmailVerified)?.length || 0}</p>
+                  <p className="text-2xl font-bold text-warning">{users?.filter((u: any) => u.invitationToken && !u.isEmailVerified)?.length || 0}</p>
                 </div>
                 <AlertCircle className="h-8 w-8 text-warning" />
               </div>
@@ -438,11 +497,11 @@ export default function UsersPage() {
                                 </Chip>
                                 <Chip 
                                   size="sm" 
-                                  color={getStatusColor(user.isActive, user.isEmailVerified)}
+                                  color={getStatusColor(user)}
                                   variant="dot"
                                   className="text-xs"
                                 >
-                                  {getStatusLabel(user.isActive, user.isEmailVerified)}
+                                  {getStatusLabel(user)}
                                 </Chip>
                               </div>
                             </div>
@@ -485,15 +544,28 @@ export default function UsersPage() {
                             </Chip>
                             <Chip 
                               size="sm" 
-                              color={getStatusColor(selectedUser.isActive, selectedUser.isEmailVerified)}
+                              color={getStatusColor(selectedUser)}
                               variant="dot"
                             >
-                              {getStatusLabel(selectedUser.isActive, selectedUser.isEmailVerified)}
+                              {getStatusLabel(selectedUser)}
                             </Chip>
                           </div>
                         </div>
                       </div>
                       <div className="flex gap-2 flex-shrink-0">
+                        {/* Botón de reenviar invitación solo para usuarios pendientes */}
+                        {getStatusLabel(selectedUser) === 'Pendiente' && (
+                          <Button
+                            size="sm"
+                            color="warning"
+                            variant="bordered"
+                            startContent={<Send size={16} />}
+                            onPress={() => handleResendInvitation(selectedUser._id)}
+                          >
+                            Reenviar Invitación
+                          </Button>
+                        )}
+                        
                         {isEditing ? (
                           <Button
                             size="sm"
@@ -523,7 +595,7 @@ export default function UsersPage() {
                           color="danger"
                           variant="bordered"
                           startContent={<Trash2 size={16} />}
-                          onPress={() => handleDeleteUser(selectedUser._id)}
+                          onPress={() => handleDeleteUser(selectedUser)}
                         >
                           Eliminar
                         </Button>
@@ -818,6 +890,89 @@ export default function UsersPage() {
           onClose={() => setInvitationModalOpen(false)}
           onGenerate={handleGenerateInvitation}
         />
+
+        {/* Modal de Confirmación de Eliminación */}
+        <Modal 
+          isOpen={deleteModalOpen} 
+          onClose={() => {
+            if (!isDeleting) {
+              setDeleteModalOpen(false)
+              setUserToDelete(null)
+              setSuperAdminPassword('')
+            }
+          }}
+          size="md"
+        >
+          <ModalContent>
+            <ModalHeader className="flex flex-col gap-1">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-danger/10 rounded-lg">
+                  <AlertCircle className="h-5 w-5 text-danger" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Confirmar Eliminación</h2>
+                </div>
+              </div>
+            </ModalHeader>
+            <ModalBody>
+              <div className="space-y-4">
+                <p className="text-muted-foreground">
+                  ¿Estás seguro de que deseas eliminar al usuario <strong>{userToDelete?.firstName} {userToDelete?.lastName}</strong>?
+                </p>
+                <p className="text-sm text-danger">
+                  Esta acción eliminará al usuario permanentemente del sistema.
+                </p>
+
+                {currentUser?.role !== 'super_admin' && (
+                  <Input
+                    type="password"
+                    label="Contraseña del Super Administrador"
+                    placeholder="Ingresa la contraseña del super admin"
+                    value={superAdminPassword}
+                    onValueChange={setSuperAdminPassword}
+                    startContent={<Key className="h-4 w-4 text-default-400" />}
+                    isRequired
+                    variant="bordered"
+                  />
+                )}
+              </div>
+            </ModalBody>
+            <ModalFooter>
+              <Button 
+                variant="light" 
+                onPress={() => {
+                  setDeleteModalOpen(false)
+                  setUserToDelete(null)
+                  setSuperAdminPassword('')
+                }}
+                isDisabled={isDeleting}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                color="danger" 
+                onPress={confirmDeleteUser}
+                startContent={<Trash2 size={16} />}
+                isLoading={isDeleting}
+                isDisabled={isDeleting}
+              >
+                Eliminar Usuario
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+        {/* Toast Notifications */}
+        <ToastContainer>
+          {toast.toasts.map((t) => (
+            <Toast
+              key={t.id}
+              message={t.message}
+              type={t.type}
+              onClose={() => toast.removeToast(t.id)}
+            />
+          ))}
+        </ToastContainer>
       </div>
     </CRMLayout>
   )

@@ -4,6 +4,7 @@ import { User, UserRole } from '@/models/User'
 import { auth } from '@/lib/auth'
 import { sendInvitationEmail } from '@/lib/email'
 import { z } from 'zod'
+import crypto from 'crypto'
 
 const resendSchema = z.object({
   invitationId: z.string().min(1, 'ID de invitación requerido')
@@ -34,20 +35,29 @@ export async function POST(request: NextRequest) {
 
     await connectToDatabase()
 
-    // Buscar la invitación pendiente
+    // Buscar la invitación pendiente (incluso si está expirada)
     const invitation = await User.findOne({
       _id: invitationId,
       isActive: false,
       isEmailVerified: false,
-      invitationToken: { $exists: true },
-      invitationExpires: { $gt: new Date() }
+      invitationToken: { $exists: true }
     }).populate('invitedBy', 'firstName lastName')
 
     if (!invitation) {
       return NextResponse.json({
         success: false,
-        error: 'Invitación no encontrada, ya utilizada o expirada'
+        error: 'Invitación no encontrada o ya utilizada'
       }, { status: 404 })
+    }
+
+    // Si la invitación está expirada, renovar el token y la fecha
+    if (invitation.invitationExpires && invitation.invitationExpires < new Date()) {
+      console.log('⚠️ Invitación expirada, renovando token...')
+      invitation.invitationToken = crypto.randomBytes(32).toString('hex')
+      invitation.invitationExpires = new Date()
+      invitation.invitationExpires.setDate(invitation.invitationExpires.getDate() + 1) // 1 día
+      await invitation.save()
+      console.log('✅ Token renovado con nueva expiración:', invitation.invitationExpires)
     }
 
     // Reenviar email

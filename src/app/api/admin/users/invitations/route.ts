@@ -69,7 +69,8 @@ export async function POST(request: NextRequest) {
       email,
       currentUser.getFullName(),
       role,
-      invitationToken
+      invitationToken,
+      expiresInDays
     )
 
     // Generar URL de invitación

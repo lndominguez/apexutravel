@@ -17,6 +17,16 @@ const registerSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    // Registro público desactivado - solo por invitación
+    return NextResponse.json(
+      { 
+        error: 'El registro público está desactivado. Solo puedes registrarte mediante invitación del administrador.',
+        code: 'REGISTRATION_DISABLED'
+      },
+      { status: 403 }
+    )
+
+    /* CÓDIGO ORIGINAL COMENTADO - Registro público desactivado hasta tener panel de cliente
     const body = await request.json()
     const { firstName, lastName, email, password, phone, role } = registerSchema.parse(body)
 
@@ -61,6 +71,7 @@ export async function POST(request: Request) {
       },
       { status: 201 }
     )
+    */
 
   } catch (error) {
     console.error('Error en registro:', error)

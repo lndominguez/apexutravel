@@ -2,17 +2,20 @@
 
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
-import { Button, Input, Card, CardBody, CardHeader, Divider } from '@heroui/react'
-import { Eye, EyeOff, Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Button, Input, Card, CardBody, Link } from '@heroui/react'
+import { Eye, EyeOff, Mail, Lock, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react'
 
 export function LoginForm() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const message = searchParams.get('message')
+  
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isVisible, setIsVisible] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const router = useRouter()
 
   const toggleVisibility = () => setIsVisible(!isVisible)
 
@@ -31,14 +34,13 @@ export function LoginForm() {
       if (result?.error) {
         console.error('Login error:', result.error)
         if (result.error === 'CredentialsSignin') {
-          setError('Email o contraseña incorrectos. Verifica tus credenciales.')
+          setError('Email o contraseña incorrectos')
         } else if (result.error === 'Configuration') {
-          setError('Error de configuración. Contacta al administrador.')
+          setError('Error de configuración del sistema')
         } else {
-          setError('Error al iniciar sesión. Intenta nuevamente.')
+          setError('Error al iniciar sesión')
         }
       } else if (result?.ok) {
-        // Login exitoso - redirigir al dashboard
         router.push('/dashboard')
       }
     } catch (error) {
@@ -50,79 +52,106 @@ export function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
-      <Card className="w-full max-w-md shadow-2xl border-0">
-        <CardHeader className="flex flex-col gap-3 pb-6">
-          <div className="flex flex-col items-center text-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mb-4">
-              <Lock className="w-8 h-8 text-white" />
+    <div className="min-h-screen flex items-center justify-center p-4" style={{
+      background: 'linear-gradient(135deg, #0c3f5b 0%, #1a5a7a 50%, #0c3f5b 100%)'
+    }}>
+      {/* Decorative elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-[#ec9c12]/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-[#f1c203]/10 rounded-full blur-3xl" />
+      </div>
+
+      <Card className="w-full max-w-md relative z-10 shadow-2xl border-0">
+        <CardBody className="p-8 sm:p-10">
+          {/* Logo/Header */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-4" style={{
+              background: 'linear-gradient(135deg, #0c3f5b 0%, #1a5a7a 100%)'
+            }}>
+              <Lock className="w-10 h-10 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Iniciar Sesión
+            <h1 className="text-3xl font-bold mb-2" style={{ color: '#0c3f5b' }}>
+              Bienvenido
             </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Accede a tu panel de administración
+            <p className="text-gray-600">
+              Inicia sesión en ApexuTravel
             </p>
           </div>
-        </CardHeader>
-        
-        <CardBody className="space-y-6">
-          {/* Credenciales de prueba */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <CheckCircle className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                Credenciales de prueba
-              </span>
-            </div>
-            <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-              <p><strong>Email:</strong> admin@test.com</p>
-              <p><strong>Contraseña:</strong> admin123</p>
-            </div>
-          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Success message */}
+          {message && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-green-800">{message}</p>
+            </div>
+          )}
+
+          {/* Login Form */}
+          <form onSubmit={handleSubmit} className="space-y-5">
             <Input
               type="email"
               label="Email"
-              placeholder="Ingresa tu email"
+              placeholder="tu-email@ejemplo.com"
               value={email}
               onValueChange={setEmail}
               startContent={<Mail className="w-4 h-4 text-gray-400" />}
               variant="bordered"
+              size="lg"
               isRequired
               isDisabled={isLoading}
+              classNames={{
+                input: 'text-base',
+                inputWrapper: 'border-gray-300 hover:border-[#0c3f5b] focus-within:!border-[#0c3f5b]'
+              }}
             />
 
-            <Input
-              label="Contraseña"
-              placeholder="Ingresa tu contraseña"
-              value={password}
-              onValueChange={setPassword}
-              startContent={<Lock className="w-4 h-4 text-gray-400" />}
-              endContent={
-                <button
-                  className="focus:outline-none"
-                  type="button"
-                  onClick={toggleVisibility}
+            <div className="space-y-2">
+              <Input
+                label="Contraseña"
+                placeholder="Ingresa tu contraseña"
+                value={password}
+                onValueChange={setPassword}
+                startContent={<Lock className="w-4 h-4 text-gray-400" />}
+                endContent={
+                  <button
+                    className="focus:outline-none"
+                    type="button"
+                    onClick={toggleVisibility}
+                    tabIndex={-1}
+                  >
+                    {isVisible ? (
+                      <EyeOff className="w-4 h-4 text-gray-400" />
+                    ) : (
+                      <Eye className="w-4 h-4 text-gray-400" />
+                    )}
+                  </button>
+                }
+                type={isVisible ? "text" : "password"}
+                variant="bordered"
+                size="lg"
+                isRequired
+                isDisabled={isLoading}
+                classNames={{
+                  input: 'text-base',
+                  inputWrapper: 'border-gray-300 hover:border-[#0c3f5b] focus-within:!border-[#0c3f5b]'
+                }}
+              />
+              
+              <div className="flex justify-end">
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-sm font-medium"
+                  style={{ color: '#ec9c12' }}
                 >
-                  {isVisible ? (
-                    <EyeOff className="w-4 h-4 text-gray-400" />
-                  ) : (
-                    <Eye className="w-4 h-4 text-gray-400" />
-                  )}
-                </button>
-              }
-              type={isVisible ? "text" : "password"}
-              variant="bordered"
-              isRequired
-              isDisabled={isLoading}
-            />
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              </div>
+            </div>
 
             {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <AlertCircle className="w-4 h-4 text-red-600" />
-                <span className="text-sm text-red-700 dark:text-red-300">
+              <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <span className="text-sm text-red-700">
                   {error}
                 </span>
               </div>
@@ -130,24 +159,23 @@ export function LoginForm() {
 
             <Button
               type="submit"
-              color="primary"
               size="lg"
-              className="w-full font-semibold"
+              className="w-full font-semibold text-white shadow-lg"
+              style={{
+                background: 'linear-gradient(135deg, #0c3f5b 0%, #1a5a7a 100%)'
+              }}
               isLoading={isLoading}
               isDisabled={!email || !password}
+              endContent={!isLoading && <ArrowRight className="w-5 h-5" />}
             >
               {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </Button>
           </form>
 
-          <Divider />
-
-          <div className="text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              ¿Problemas para acceder?{' '}
-              <span className="text-blue-600 dark:text-blue-400 font-medium">
-                Contacta al administrador
-              </span>
+          {/* Footer */}
+          <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+            <p className="text-xs text-gray-500">
+              © 2024 ApexuTravel. Todos los derechos reservados.
             </p>
           </div>
         </CardBody>

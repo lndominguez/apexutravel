@@ -133,15 +133,32 @@ export function useAdminUsers(filters: UserFilters = {}) {
     }
   }
 
-  const deleteUser = async (userId: string) => {
+  const deleteUser = async (userId: string, superAdminPassword?: string) => {
     try {
+      console.log('🗑️ Deleting user:', userId)
+      
       const response = await fetch(`/api/admin/users/${userId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ superAdminPassword })
       })
 
-      if (!response.ok) throw new Error('Error deleting user')
+      console.log('📡 Delete response:', { 
+        status: response.status, 
+        statusText: response.statusText,
+        ok: response.ok 
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('❌ API Error:', errorData)
+        throw new Error(errorData.error || response.statusText)
+      }
 
       const result = await response.json()
+      console.log('✅ Delete successful:', result)
       
       // Revalidar lista de usuarios
       await mutate()
@@ -177,6 +194,35 @@ export function useAdminUsers(filters: UserFilters = {}) {
     }
   }
 
+  const resendInvitation = async (userId: string) => {
+    try {
+      console.log('📧 Resending invitation for user:', userId)
+      
+      const response = await fetch('/api/admin/users/invitations/resend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invitationId: userId })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('❌ Resend failed:', result)
+        throw new Error(result.error || 'Error al reenviar invitación')
+      }
+
+      console.log('✅ Invitation resent successfully:', result)
+      
+      // Revalidar lista
+      await mutate()
+      
+      return result
+    } catch (error) {
+      console.error('❌ Error resending invitation:', error)
+      throw error
+    }
+  }
+
   return {
     // Datos (la API devuelve 'users' no 'data')
     users: data?.users || [],
@@ -192,6 +238,7 @@ export function useAdminUsers(filters: UserFilters = {}) {
     updateUser,
     deleteUser,
     generateInvitation,
+    resendInvitation,
     
     // Utility functions
     refreshUsers: mutate,

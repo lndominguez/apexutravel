@@ -58,7 +58,7 @@ export const sendEmail = async (options: EmailOptions) => {
   }
 }
 
-// Template base para emails
+// Template base para emails con branding de ApexuCode
 const getEmailTemplate = (title: string, content: string, buttonText?: string, buttonUrl?: string) => {
   return `
     <!DOCTYPE html>
@@ -68,97 +68,180 @@ const getEmailTemplate = (title: string, content: string, buttonText?: string, b
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>${title}</title>
       <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
         body {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
           line-height: 1.6;
-          color: #333;
+          color: #333333;
+          background: linear-gradient(135deg, #0c3f5b 0%, #1a5a7a 100%);
+          padding: 40px 20px;
+        }
+        .email-wrapper {
           max-width: 600px;
           margin: 0 auto;
-          padding: 20px;
-          background-color: #f8fafc;
         }
         .container {
-          background: white;
-          border-radius: 12px;
-          padding: 40px;
-          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          background: #ffffff;
+          border-radius: 16px;
+          overflow: hidden;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
         }
         .header {
+          background: linear-gradient(135deg, #0c3f5b 0%, #1a5a7a 100%);
+          padding: 40px 30px;
           text-align: center;
-          margin-bottom: 30px;
         }
         .logo {
-          font-size: 24px;
+          font-size: 32px;
           font-weight: bold;
-          color: #3b82f6;
-          margin-bottom: 10px;
+          color: #ffffff;
+          margin-bottom: 8px;
+          letter-spacing: 1px;
+        }
+        .logo-subtitle {
+          color: #f1c203;
+          font-size: 14px;
+          font-weight: 500;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+        }
+        .content-wrapper {
+          padding: 40px 30px;
         }
         .title {
           font-size: 28px;
           font-weight: bold;
-          color: #1f2937;
-          margin-bottom: 20px;
+          color: #0c3f5b;
+          margin-bottom: 24px;
+          text-align: center;
         }
         .content {
           font-size: 16px;
           color: #4b5563;
           margin-bottom: 30px;
+          line-height: 1.8;
+        }
+        .content p {
+          margin-bottom: 16px;
+        }
+        .content strong {
+          color: #0c3f5b;
+          font-weight: 600;
+        }
+        .button-wrapper {
+          text-align: center;
+          margin: 32px 0;
         }
         .button {
           display: inline-block;
-          background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-          color: white;
-          padding: 14px 28px;
+          background: linear-gradient(135deg, #0c3f5b 0%, #1a5a7a 100%);
+          color: #ffffff;
+          padding: 16px 40px;
           text-decoration: none;
-          border-radius: 8px;
+          border-radius: 10px;
           font-weight: 600;
           font-size: 16px;
-          margin: 20px 0;
-          transition: transform 0.2s;
+          box-shadow: 0 4px 12px rgba(12, 63, 91, 0.3);
+          transition: all 0.3s ease;
         }
         .button:hover {
-          transform: translateY(-1px);
-        }
-        .footer {
-          margin-top: 40px;
-          padding-top: 20px;
-          border-top: 1px solid #e5e7eb;
-          font-size: 14px;
-          color: #6b7280;
-          text-align: center;
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(12, 63, 91, 0.4);
         }
         .warning {
-          background: #fef3c7;
-          border: 1px solid #f59e0b;
+          background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+          border-left: 4px solid #ec9c12;
           border-radius: 8px;
-          padding: 16px;
-          margin: 20px 0;
+          padding: 20px;
+          margin: 24px 0;
           font-size: 14px;
           color: #92400e;
+        }
+        .warning strong {
+          color: #ec9c12;
+          display: block;
+          margin-bottom: 8px;
+          font-size: 15px;
+        }
+        .info-box {
+          background: #f8fafc;
+          border-left: 4px solid #0c3f5b;
+          border-radius: 8px;
+          padding: 20px;
+          margin: 24px 0;
+          font-size: 14px;
+          color: #4b5563;
+        }
+        .footer {
+          background: #f8fafc;
+          padding: 30px;
+          text-align: center;
+          border-top: 1px solid #e5e7eb;
+        }
+        .footer p {
+          font-size: 13px;
+          color: #6b7280;
+          margin-bottom: 8px;
+        }
+        .footer-brand {
+          color: #0c3f5b;
+          font-weight: 600;
+        }
+        .divider {
+          height: 1px;
+          background: linear-gradient(90deg, transparent, #e5e7eb, transparent);
+          margin: 24px 0;
+        }
+        @media only screen and (max-width: 600px) {
+          .content-wrapper {
+            padding: 30px 20px;
+          }
+          .header {
+            padding: 30px 20px;
+          }
+          .title {
+            font-size: 24px;
+          }
+          .button {
+            padding: 14px 32px;
+            font-size: 15px;
+          }
         }
       </style>
     </head>
     <body>
-      <div class="container">
-        <div class="header">
-          <div class="logo">${process.env.APP_NAME || 'CRM Agencia de Viajes'}</div>
-        </div>
-        
-        <h1 class="title">${title}</h1>
-        
-        <div class="content">
-          ${content}
-        </div>
-        
-        ${buttonText && buttonUrl ? `
-          <div style="text-align: center;">
-            <a href="${buttonUrl}" class="button">${buttonText}</a>
+      <div class="email-wrapper">
+        <div class="container">
+          <div class="header">
+            <div class="logo">ApexuTravel</div>
+            <div class="logo-subtitle">Tu Agencia de Viajes</div>
           </div>
-        ` : ''}
-        
-        <div class="footer">
-          <p>Este email fue enviado desde ${process.env.APP_NAME || 'CRM Agencia de Viajes'}</p>
-          <p>Si no solicitaste esta acción, puedes ignorar este email.</p>
+          
+          <div class="content-wrapper">
+            <h1 class="title">${title}</h1>
+            
+            <div class="content">
+              ${content}
+            </div>
+            
+            ${buttonText && buttonUrl ? `
+              <div class="button-wrapper">
+                <a href="${buttonUrl}" class="button">${buttonText}</a>
+              </div>
+            ` : ''}
+          </div>
+          
+          <div class="footer">
+            <p><strong class="footer-brand">ApexuTravel</strong></p>
+            <p>Este email fue enviado desde ApexuTravel</p>
+            <p>Si no solicitaste esta acción, puedes ignorar este email.</p>
+            <div class="divider"></div>
+            <p style="font-size: 12px; color: #9ca3af;">© 2024 ApexuTravel. Todos los derechos reservados.</p>
+          </div>
         </div>
       </div>
     </body>
@@ -171,9 +254,11 @@ export const sendInvitationEmail = async (
   email: string,
   inviterName: string,
   role: string,
-  token: string
+  token: string,
+  expiresInDays: number = 1
 ) => {
-  const invitationUrl = `${process.env.NEXTAUTH_URL}/auth/invitation?token=${token}`
+  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+  const invitationUrl = `${baseUrl}/auth/invitation?token=${token}`
   
   const roleLabels: Record<string, string> = {
     super_admin: 'Super Administrador',
@@ -183,20 +268,27 @@ export const sendInvitationEmail = async (
     viewer: 'Solo Lectura'
   }
 
+  const expirationText = expiresInDays === 1 ? '1 día' : `${expiresInDays} días`
+
   const content = `
     <p>¡Hola!</p>
-    <p><strong>${inviterName}</strong> te ha invitado a unirte al equipo de ${process.env.APP_NAME || 'nuestra empresa'}.</p>
-    <p><strong>Rol asignado:</strong> ${roleLabels[role] || role}</p>
+    <p><strong>${inviterName}</strong> te ha invitado a unirte al equipo de <strong>ApexuTravel</strong>.</p>
+    
+    <div class="info-box">
+      <p style="margin: 0;"><strong>Rol asignado:</strong> ${roleLabels[role] || role}</p>
+    </div>
+    
     <p>Para completar tu registro y crear tu cuenta, haz clic en el botón de abajo:</p>
     
     <div class="warning">
-      <strong>⏰ Importante:</strong> Este enlace de invitación expirará en 7 días.
+      <strong>⏰ Importante:</strong>
+      <p style="margin: 8px 0 0 0;">Este enlace de invitación expirará en <strong>${expirationText}</strong>.</p>
     </div>
   `
 
   return await sendEmail({
     to: email,
-    subject: `Invitación para unirte a ${process.env.APP_NAME || 'nuestro equipo'}`,
+    subject: 'Invitación para unirte a ApexuTravel',
     html: getEmailTemplate(
       '🎉 ¡Has sido invitado!',
       content,
@@ -216,19 +308,24 @@ export const sendPasswordResetEmail = async (
   
   const content = `
     <p>Hola <strong>${firstName}</strong>,</p>
-    <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta.</p>
+    <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en <strong>ApexuTravel</strong>.</p>
     <p>Si fuiste tú quien solicitó este cambio, haz clic en el botón de abajo para crear una nueva contraseña:</p>
     
     <div class="warning">
-      <strong>🔒 Seguridad:</strong> Este enlace expirará en 1 hora por tu seguridad.
+      <strong>🔒 Importante - Seguridad:</strong>
+      <p style="margin: 8px 0 0 0;">Este enlace expirará en <strong>1 hora</strong> por tu seguridad.</p>
     </div>
     
-    <p>Si no solicitaste este cambio, puedes ignorar este email. Tu contraseña actual seguirá siendo válida.</p>
+    <div class="divider"></div>
+    
+    <p style="font-size: 14px; color: #6b7280;">
+      <strong>Nota:</strong> Si no solicitaste este cambio, puedes ignorar este email. Tu contraseña actual seguirá siendo válida y tu cuenta está segura.
+    </p>
   `
 
   return await sendEmail({
     to: email,
-    subject: 'Restablecer contraseña - ' + (process.env.APP_NAME || 'CRM'),
+    subject: 'Restablecer contraseña - ApexuTravel',
     html: getEmailTemplate(
       '🔑 Restablecer Contraseña',
       content,
@@ -245,14 +342,24 @@ export const sendPasswordChangedEmail = async (
 ) => {
   const content = `
     <p>Hola <strong>${firstName}</strong>,</p>
-    <p>Tu contraseña ha sido cambiada exitosamente.</p>
-    <p>Si no realizaste este cambio, contacta inmediatamente con el administrador del sistema.</p>
-    <p><strong>Fecha y hora:</strong> ${new Date().toLocaleString('es-ES', { timeZone: 'America/Mexico_City' })}</p>
+    <p>Tu contraseña en <strong>ApexuTravel</strong> ha sido cambiada exitosamente.</p>
+    
+    <div class="info-box">
+      <p style="margin: 0;"><strong>📅 Fecha y hora del cambio:</strong></p>
+      <p style="margin: 8px 0 0 0;">${new Date().toLocaleString('es-ES', { timeZone: 'America/Mexico_City', dateStyle: 'full', timeStyle: 'short' })}</p>
+    </div>
+    
+    <p>Si reconoces este cambio, no necesitas hacer nada más. Tu cuenta está segura.</p>
+    
+    <div class="warning">
+      <strong>⚠️ Atención:</strong>
+      <p style="margin: 8px 0 0 0;">Si <strong>NO</strong> realizaste este cambio, contacta inmediatamente con el administrador del sistema. Tu cuenta podría estar comprometida.</p>
+    </div>
   `
 
   return await sendEmail({
     to: email,
-    subject: 'Contraseña cambiada - ' + (process.env.APP_NAME || 'CRM'),
+    subject: 'Contraseña actualizada - ApexuTravel',
     html: getEmailTemplate(
       '✅ Contraseña Actualizada',
       content

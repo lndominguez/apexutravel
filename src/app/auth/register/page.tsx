@@ -1,294 +1,101 @@
 'use client'
 
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button, Input, Card, CardBody, CardHeader, Link, Select, SelectItem } from '@heroui/react'
-import { Eye, EyeOff } from 'lucide-react'
-import { Formik, Form, Field } from 'formik'
-import * as Yup from 'yup'
-
-// Tipos para los parámetros de Formik
-interface FieldProps {
-  field: {
-    name: string
-    value: string
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-    onBlur: (e: React.FocusEvent<HTMLInputElement>) => void
-  }
-  meta: {
-    touched: boolean
-    error: string | undefined
-  }
-}
-
-interface SelectFieldProps {
-  field: {
-    name: string
-    value: string
-    onChange: (...args: unknown[]) => void
-    onBlur: (...args: unknown[]) => void
-  }
-  meta: {
-    touched: boolean
-    error: string | undefined
-  }
-}
-
-const validationSchema = Yup.object().shape({
-  firstName: Yup.string().required('El nombre es requerido'),
-  lastName: Yup.string().required('El apellido es requerido'),
-  email: Yup.string().email('Email inválido').required('El email es requerido'),
-  password: Yup.string().min(6, 'Mínimo 6 caracteres').required('La contraseña es requerida'),
-  confirmPassword: Yup.string()
-    .oneOf([Yup.ref('password'), ''], 'Las contraseñas deben coincidir')
-    .required('Confirma tu contraseña'),
-  phone: Yup.string().optional(),
-  role: Yup.string().oneOf(['agent', 'manager'], 'Rol inválido').required('El rol es requerido')
-})
+import { Button, Card, CardBody, Link } from '@heroui/react'
+import { Shield, Mail, ArrowLeft } from 'lucide-react'
 
 export default function RegisterPage() {
-  const [isVisible, setIsVisible] = useState(false)
-  const [isVisibleConfirm, setIsVisibleConfirm] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const router = useRouter()
 
-  const toggleVisibility = () => setIsVisible(!isVisible)
-  const toggleVisibilityConfirm = () => setIsVisibleConfirm(!isVisibleConfirm)
-
-  const handleSubmit = async (values: {
-    firstName: string
-    lastName: string
-    email: string
-    password: string
-    confirmPassword: string
-    phone?: string
-    role: string
-  }) => {
-    setIsLoading(true)
-    setError('')
-    setSuccess('')
-
-    try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          firstName: values.firstName,
-          lastName: values.lastName,
-          email: values.email.toLowerCase(),
-          password: values.password,
-          phone: values.phone || undefined,
-          role: values.role
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Error al crear la cuenta')
-      } else {
-        setSuccess('¡Cuenta creada exitosamente! Redirigiendo al login...')
-        setTimeout(() => {
-          router.push('/auth/login')
-        }, 2000)
-      }
-    } catch {
-      setError('Error al crear la cuenta')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="flex flex-col items-center pb-0">
-          <h1 className="text-2xl font-bold text-center">CRM Travel</h1>
-          <p className="text-gray-600 text-center">Crea tu cuenta</p>
-        </CardHeader>
-        <CardBody className="pt-6">
-          <Formik
-            initialValues={{
-              firstName: '',
-              lastName: '',
-              email: '',
-              password: '',
-              confirmPassword: '',
-              phone: '',
-              role: 'agent'
+    <div className="min-h-screen flex items-center justify-center p-4" style={{
+      background: 'linear-gradient(135deg, #0c3f5b 0%, #1a5a7a 50%, #0c3f5b 100%)'
+    }}>
+      {/* Decorative elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-[#ec9c12]/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-[#f1c203]/10 rounded-full blur-3xl" />
+      </div>
+
+      <Card className="w-full max-w-md relative z-10 shadow-2xl border-0">
+        <CardBody className="p-8 sm:p-10 text-center">
+          {/* Logo/Header */}
+          <div className="mb-8">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-4" style={{
+              background: 'linear-gradient(135deg, #ec9c12 0%, #f59e0b 100%)'
+            }}>
+              <Shield className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="text-3xl font-bold mb-2" style={{ color: '#0c3f5b' }}>
+              Registro por Invitación
+            </h1>
+            <p className="text-gray-600">
+              El registro público está desactivado
+            </p>
+          </div>
+
+          {/* Info Message */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+            <div className="flex items-start gap-3">
+              <Mail className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="text-left">
+                <h3 className="font-semibold text-blue-900 mb-2">Solo por Invitación</h3>
+                <p className="text-sm text-blue-800">
+                  El registro de nuevas cuentas solo está disponible mediante invitación del administrador.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <p className="text-sm text-gray-700">
+                <strong>¿Recibiste una invitación?</strong>
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                Revisa tu email y haz clic en el enlace de invitación para completar tu registro.
+              </p>
+            </div>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <p className="text-sm text-gray-700">
+                <strong>¿Necesitas acceso?</strong>
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                Contacta con el administrador del sistema para solicitar una invitación.
+              </p>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="relative my-8">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white text-gray-500">¿Ya tienes cuenta?</span>
+            </div>
+          </div>
+
+          {/* Login Link */}
+          <Button
+            size="lg"
+            variant="bordered"
+            className="w-full font-semibold"
+            style={{
+              borderColor: '#0c3f5b',
+              color: '#0c3f5b'
             }}
-            validationSchema={validationSchema}
-            onSubmit={handleSubmit}
+            onPress={() => router.push('/auth/login')}
+            startContent={<ArrowLeft className="w-5 h-5" />}
           >
-            {({ isSubmitting }) => (
-              <Form className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <Field name="firstName">
-                    {({ field, meta }: FieldProps) => (
-                      <Input
-                        {...field}
-                      label="Nombre"
-                      placeholder="Juan"
-                      variant="bordered"
-                      isInvalid={meta.touched && !!meta.error}
-                      errorMessage={meta.touched && meta.error ? meta.error : undefined}
-                    />
-                    )}
-                  </Field>
+            Volver al Login
+          </Button>
 
-                  <Field name="lastName">
-                    {({ field, meta }: FieldProps) => (
-                      <Input
-                        {...field}
-                        label="Apellido"
-                        placeholder="Pérez"
-                        variant="bordered"
-                        isInvalid={meta.touched && !!meta.error}
-                        errorMessage={meta.touched && meta.error ? meta.error : undefined}
-                      />
-                    )}
-                  </Field>
-                </div>
-
-                <Field name="email">
-                  {({ field, meta }: FieldProps) => (
-                    <Input
-                      {...field}
-                      type="email"
-                      label="Email"
-                      placeholder="tu@email.com"
-                      variant="bordered"
-                      isInvalid={meta.touched && !!meta.error}
-                      errorMessage={meta.touched && meta.error ? meta.error : undefined}
-                    />
-                  )}
-                </Field>
-
-                <Field name="phone">
-                  {({ field, meta }: FieldProps) => (
-                    <Input
-                      {...field}
-                      type="tel"
-                      label="Teléfono (opcional)"
-                      placeholder="+52 123 456 7890"
-                      variant="bordered"
-                      isInvalid={meta.touched && !!meta.error}
-                      errorMessage={meta.touched && meta.error ? meta.error : undefined}
-                    />
-                  )}
-                </Field>
-
-                <Field name="role">
-                  {({ field, meta }: SelectFieldProps) => (
-                    <Select
-                      {...field}
-                      label="Rol"
-                      placeholder="Selecciona tu rol"
-                      variant="bordered"
-                      isInvalid={meta.touched && !!meta.error}
-                      errorMessage={meta.touched && meta.error ? meta.error : undefined}
-                    >
-                      <SelectItem key="agent">
-                        Agente de Ventas
-                      </SelectItem>
-                      <SelectItem key="manager">
-                        Gerente
-                      </SelectItem>
-                    </Select>
-                  )}
-                </Field>
-
-                <Field name="password">
-                  {({ field, meta }: FieldProps) => (
-                    <Input
-                      {...field}
-                      label="Contraseña"
-                      placeholder="Mínimo 6 caracteres"
-                      variant="bordered"
-                      type={isVisible ? 'text' : 'password'}
-                      isInvalid={meta.touched && !!meta.error}
-                      errorMessage={meta.touched && meta.error ? meta.error : undefined}
-                      endContent={
-                        <button
-                          className="focus:outline-none"
-                          type="button"
-                          onClick={toggleVisibility}
-                          aria-label="toggle password visibility"
-                        >
-                          {isVisible ? (
-                            <EyeOff className="text-2xl text-default-400 pointer-events-none" />
-                          ) : (
-                            <Eye className="text-2xl text-default-400 pointer-events-none" />
-                          )}
-                        </button>
-                      }
-                    />
-                  )}
-                </Field>
-
-                <Field name="confirmPassword">
-                  {({ field, meta }: FieldProps) => (
-                    <Input
-                      {...field}
-                      label="Confirmar Contraseña"
-                      placeholder="Repite tu contraseña"
-                      variant="bordered"
-                      type={isVisibleConfirm ? 'text' : 'password'}
-                      isInvalid={meta.touched && !!meta.error}
-                      errorMessage={meta.touched && meta.error ? meta.error : undefined}
-                      endContent={
-                        <button
-                          className="focus:outline-none"
-                          type="button"
-                          onClick={toggleVisibilityConfirm}
-                          aria-label="toggle confirm password visibility"
-                        >
-                          {isVisibleConfirm ? (
-                            <EyeOff className="text-2xl text-default-400 pointer-events-none" />
-                          ) : (
-                            <Eye className="text-2xl text-default-400 pointer-events-none" />
-                          )}
-                        </button>
-                      }
-                    />
-                  )}
-                </Field>
-
-                {error && (
-                  <div className="text-red-500 text-sm text-center">
-                    {error}
-                  </div>
-                )}
-
-                {success && (
-                  <div className="text-green-500 text-sm text-center">
-                    {success}
-                  </div>
-                )}
-
-                <Button
-                  type="submit"
-                  color="primary"
-                  fullWidth
-                  isLoading={isSubmitting || isLoading}
-                  className="font-semibold"
-                >
-                  Crear Cuenta
-                </Button>
-              </Form>
-            )}
-          </Formik>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              ¿Ya tienes cuenta?{' '}
-              <Link href="/auth/login" className="text-primary hover:underline">
-                Inicia sesión
-              </Link>
+          {/* Footer */}
+          <div className="mt-8 pt-6 border-t border-gray-100">
+            <p className="text-xs text-gray-500">
+              © 2024 ApexuTravel. Todos los derechos reservados.
             </p>
           </div>
         </CardBody>

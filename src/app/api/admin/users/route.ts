@@ -49,7 +49,11 @@ export async function GET(request: NextRequest) {
     if (status && status !== 'all') {
       if (status === 'active') filters.isActive = true
       if (status === 'inactive') filters.isActive = false
-      if (status === 'pending') filters.isEmailVerified = false
+      if (status === 'pending') {
+        filters.isActive = false
+        filters.isEmailVerified = false
+        filters.invitationToken = { $exists: true }
+      }
     }
 
     if (department && department !== 'all') {
@@ -60,11 +64,19 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit
 
     // Obtener usuarios con paginación
-    const users = await User.find(filters)
-      .select('-password')
+    const usersRaw = await User.find(filters)
+      .select('-password +invitationToken +invitationExpires')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
+
+    const users = usersRaw.map((u) => {
+      const obj: any = u.toObject({ virtuals: true })
+      obj.hasInvitation = !!u.invitationToken
+      obj.invitationExpires = u.invitationExpires || null
+      delete obj.invitationToken
+      return obj
+    })
 
     console.log('🔍 Found users:', users.length)
     console.log('🔍 Filters applied:', filters)
@@ -78,7 +90,11 @@ export async function GET(request: NextRequest) {
       total: await User.countDocuments(),
       active: await User.countDocuments({ isActive: true }),
       inactive: await User.countDocuments({ isActive: false }),
-      pending: await User.countDocuments({ isEmailVerified: false }),
+      pending: await User.countDocuments({
+        isActive: false,
+        isEmailVerified: false,
+        invitationToken: { $exists: true }
+      }),
       newThisMonth: await User.countDocuments({
         createdAt: {
           $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
