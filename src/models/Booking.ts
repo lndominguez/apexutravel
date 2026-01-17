@@ -27,6 +27,15 @@ export interface IPricing {
   currency: string
 }
 
+export interface IRoomReservation {
+  id: string
+  roomIndex: number
+  occupancy: string
+  adults: number
+  children: number
+  infants: number
+}
+
 export interface IBooking extends Document {
   // Información básica
   bookingNumber: string
@@ -51,6 +60,7 @@ export interface IBooking extends Document {
       roomIndex: number
       roomName: string
       occupancy: string
+      roomReservations?: IRoomReservation[]
       checkIn: Date
       checkOut: Date
       nights: number
@@ -63,6 +73,7 @@ export interface IBooking extends Document {
         days: number
         nights: number
       }
+      roomReservations?: IRoomReservation[]
     }
     // Para vuelos
     flight?: {
@@ -115,6 +126,15 @@ const PassengerSchema = new Schema({
   nationality: { type: String, default: 'México' },
   passportPhoto: { type: String }
 })
+
+const RoomReservationSchema = new Schema({
+  id: { type: String, required: true },
+  roomIndex: { type: Number, required: true },
+  occupancy: { type: String, required: true },
+  adults: { type: Number, required: true },
+  children: { type: Number, required: true },
+  infants: { type: Number, required: true }
+}, { _id: false })
 
 const ContactInfoSchema = new Schema({
   email: { type: String, required: true },
@@ -170,6 +190,7 @@ const BookingSchema = new Schema<IBooking>({
       roomIndex: Number,
       roomName: String,
       occupancy: String,
+      roomReservations: [RoomReservationSchema],
       checkIn: Date,
       checkOut: Date,
       nights: Number
@@ -180,7 +201,8 @@ const BookingSchema = new Schema<IBooking>({
       duration: {
         days: Number,
         nights: Number
-      }
+      },
+      roomReservations: [RoomReservationSchema]
     },
     flight: {
       origin: String,

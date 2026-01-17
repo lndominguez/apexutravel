@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
       endDate,
       roomIndex,
       occupancy,
+      roomReservations,
       paymentMethod,
       details
     } = body
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
           roomIndex: roomIndex || 0,
           roomName: body.roomName || 'Habitación',
           occupancy: occupancy || 'double',
+          roomReservations: Array.isArray(roomReservations) ? roomReservations : undefined,
           checkIn: startDate ? new Date(startDate) : new Date(),
           checkOut: endDate ? new Date(endDate) : new Date(),
           nights: endDate && startDate 
@@ -48,7 +50,8 @@ export async function POST(request: NextRequest) {
         package: {
           destination: body.destination || 'Destino',
           startDate: startDate ? new Date(startDate) : new Date(),
-          duration: body.duration || { days: 5, nights: 4 }
+          duration: body.duration || { days: 5, nights: 4 },
+          roomReservations: Array.isArray(roomReservations) ? roomReservations : undefined
         }
       }
     }

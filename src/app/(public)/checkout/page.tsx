@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardBody, Button, Input, Select, SelectItem, Radio, RadioGroup, Divider, Chip, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@heroui/react'
-import { ArrowLeft, Lock, CreditCard, User, Mail, Phone, MapPin, Calendar, Users, CheckCircle2, AlertCircle, ShoppingBag, Upload, FileText, X, PartyPopper } from 'lucide-react'
+import { ArrowLeft, Lock, CreditCard, User, Mail, Phone, MapPin, Calendar, Users, CheckCircle2, AlertCircle, ShoppingBag, Upload, FileText, X, PartyPopper, Star } from 'lucide-react'
 import { SearchLayout } from '@/components/layout/SearchLayout'
 
 function CheckoutContent() {
@@ -22,6 +22,18 @@ function CheckoutContent() {
   const occupancy = searchParams.get('occupancy') || 'double'
   const totalPrice = parseFloat(searchParams.get('totalPrice') || '0')
   
+  // Parsear roomReservations para hoteles con múltiples habitaciones
+  const roomReservationsParam = searchParams.get('roomReservations')
+  const roomReservations = (() => {
+    if (!roomReservationsParam) return []
+    try {
+      const parsed = JSON.parse(roomReservationsParam)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  })()
+  
   // Estados
   const [item, setItem] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -34,6 +46,7 @@ function CheckoutContent() {
   const [passengers, setPassengers] = useState<any[]>([])
   const [passportFiles, setPassportFiles] = useState<{[key: number]: File | null}>({})
   const [passportPreviews, setPassportPreviews] = useState<{[key: number]: string}>({})
+  const [passportDataUrls, setPassportDataUrls] = useState<{[key: number]: string}>({})
   const [selectedImageModal, setSelectedImageModal] = useState<string | null>(null)
   const [contactInfo, setContactInfo] = useState({
     email: '',
@@ -122,7 +135,7 @@ function CheckoutContent() {
   const validateStep = (step: number) => {
     if (step === 1) {
       // Validar que todos los pasajeros tengan datos completos
-      return passengers.every(p => p.fullName && p.dateOfBirth && p.passport)
+      return passengers.every((p, idx) => p.fullName && p.dateOfBirth && p.passport && !!passportDataUrls[idx])
     }
     if (step === 2) {
       // Validar datos de contacto
@@ -138,6 +151,11 @@ function CheckoutContent() {
     setIsProcessing(true)
     
     try {
+      const passengersWithDocs = passengers.map((p: any, idx: number) => ({
+        ...p,
+        passportPhoto: passportDataUrls[idx] || undefined
+      }))
+
       // Preparar datos adicionales según el tipo
       let additionalData: any = {}
       
@@ -150,9 +168,15 @@ function CheckoutContent() {
           endDate
         }
       } else if (type === 'package' && item) {
+        const packageHotelItem = item.items?.find((it: any) => it.resourceType === 'Hotel') || item.items?.[0]
+        const loc = packageHotelItem?.hotelInfo?.location
+        const destinationString = typeof item.destination === 'string'
+          ? item.destination
+          : [item.destination?.city || loc?.city, item.destination?.country || loc?.country].filter(Boolean).join(', ')
+
         additionalData = {
           itemName: item.name || 'Paquete',
-          destination: typeof item.destination === 'string' ? item.destination : `${item.destination?.city}, ${item.destination?.country}`,
+          destination: destinationString || 'Destino',
           duration: item.duration
         }
       }
@@ -164,7 +188,7 @@ function CheckoutContent() {
         body: JSON.stringify({
           type,
           itemId,
-          passengers,
+          passengers: passengersWithDocs,
           contactInfo,
           pricing: {
             adults,
@@ -173,8 +197,10 @@ function CheckoutContent() {
             total
           },
           startDate,
+          endDate,
           roomIndex,
           occupancy,
+          roomReservations,
           paymentMethod: 'pending',
           status: 'pending',
           ...additionalData
@@ -384,15 +410,16 @@ function CheckoutContent() {
                                       const file = e.target.files?.[0]
                                       if (file) {
                                         setPassportFiles({ ...passportFiles, [idx]: file })
-                                        
-                                        // Crear preview si es imagen
-                                        if (file.type.startsWith('image/')) {
-                                          const reader = new FileReader()
-                                          reader.onloadend = () => {
-                                            setPassportPreviews({ ...passportPreviews, [idx]: reader.result as string })
+
+                                        const reader = new FileReader()
+                                        reader.onloadend = () => {
+                                          const result = reader.result as string
+                                          setPassportDataUrls({ ...passportDataUrls, [idx]: result })
+                                          if (file.type.startsWith('image/')) {
+                                            setPassportPreviews({ ...passportPreviews, [idx]: result })
                                           }
-                                          reader.readAsDataURL(file)
                                         }
+                                        reader.readAsDataURL(file)
                                       }
                                     }}
                                   />
@@ -417,15 +444,16 @@ function CheckoutContent() {
                                     const file = e.target.files?.[0]
                                     if (file) {
                                       setPassportFiles({ ...passportFiles, [idx]: file })
-                                      
-                                      // Crear preview si es imagen
-                                      if (file.type.startsWith('image/')) {
-                                        const reader = new FileReader()
-                                        reader.onloadend = () => {
-                                          setPassportPreviews({ ...passportPreviews, [idx]: reader.result as string })
+
+                                      const reader = new FileReader()
+                                      reader.onloadend = () => {
+                                        const result = reader.result as string
+                                        setPassportDataUrls({ ...passportDataUrls, [idx]: result })
+                                        if (file.type.startsWith('image/')) {
+                                          setPassportPreviews({ ...passportPreviews, [idx]: result })
                                         }
-                                        reader.readAsDataURL(file)
                                       }
+                                      reader.readAsDataURL(file)
                                     }
                                   }}
                                 />
@@ -604,10 +632,20 @@ function CheckoutContent() {
                     <Divider className="my-4" />
                     
                     <div className="space-y-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <MapPin size={16} className="text-primary" />
-                        <span>{item.destination?.city}, {item.destination?.country}</span>
-                      </div>
+                      {(() => {
+                        const packageHotelItem = item.items?.find((it: any) => it.resourceType === 'Hotel') || item.items?.[0]
+                        const loc = packageHotelItem?.hotelInfo?.location
+                        const destinationLabel = typeof item.destination === 'string'
+                          ? item.destination
+                          : [item.destination?.city || loc?.city, item.destination?.country || loc?.country].filter(Boolean).join(', ')
+
+                        return destinationLabel ? (
+                          <div className="flex items-center gap-2">
+                            <MapPin size={16} className="text-primary" />
+                            <span>{destinationLabel}</span>
+                          </div>
+                        ) : null
+                      })()}
                       {startDate && (
                         <div className="flex items-center gap-2">
                           <Calendar size={16} className="text-primary" />
@@ -622,6 +660,50 @@ function CheckoutContent() {
                         </span>
                       </div>
                     </div>
+
+                    {roomReservations.length > 0 && (
+                      <>
+                        <Divider className="my-4" />
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-semibold text-gray-700">Habitaciones</p>
+                            <Chip size="sm" className="bg-[#0c3f5b] text-white">
+                              {roomReservations.length} {roomReservations.length === 1 ? 'habitación' : 'habitaciones'}
+                            </Chip>
+                          </div>
+                          <div className="space-y-2">
+                            {roomReservations.map((reservation: any, idx: number) => {
+                              const packageHotelItem = item.items?.find((it: any) => it.resourceType === 'Hotel') || item.items?.[0]
+                              const room = packageHotelItem?.selectedRooms?.[reservation.roomIndex]
+                              if (!room) return null
+
+                              return (
+                                <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1">
+                                      <p className="font-semibold text-gray-900 text-sm">{room.name}</p>
+                                      <div className="flex items-center gap-2 mt-1 text-xs text-gray-600">
+                                        <Users size={12} />
+                                        <span>
+                                          {reservation.adults} adulto{reservation.adults > 1 ? 's' : ''}
+                                          {reservation.children > 0 && `, ${reservation.children} niño${reservation.children > 1 ? 's' : ''}`}
+                                          {reservation.infants > 0 && `, ${reservation.infants} infante${reservation.infants > 1 ? 's' : ''}`}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <Chip size="sm" variant="flat" className="text-xs">
+                                      {reservation.occupancy === 'single' ? 'Simple' : 
+                                       reservation.occupancy === 'double' ? 'Doble' : 
+                                       reservation.occupancy === 'triple' ? 'Triple' : 'Cuádruple'}
+                                    </Chip>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    )}
                     
                     <Divider className="my-4" />
                     
@@ -661,24 +743,58 @@ function CheckoutContent() {
                   <>
                     {/* Nombre del hotel */}
                     <div className="mb-4">
-                      <p className="text-sm text-gray-500">Hotel</p>
-                      <p className="font-bold">{item.name || 'Hotel'}</p>
+                      <h3 className="text-lg font-bold text-gray-900">{item.name || 'Hotel'}</h3>
+                      {item.items?.[0]?.hotelInfo?.stars && (
+                        <div className="flex items-center gap-1 mt-1">
+                          {[...Array(5)].map((_, i) => (
+                            <Star key={i} size={14} fill={i < item.items[0].hotelInfo.stars ? "#f1c203" : "none"} className={i < item.items[0].hotelInfo.stars ? "text-[#f1c203]" : "text-gray-300"} />
+                          ))}
+                        </div>
+                      )}
                     </div>
                     
                     <Divider className="my-4" />
                     
                     {/* Información del servicio */}
                     <div className="space-y-3 text-sm">
-                      {/* Habitación */}
-                      {item.items?.[0]?.selectedRooms?.[roomIndex] && (
-                        <div className="bg-gray-50 p-3 rounded-lg">
-                          <p className="text-xs text-gray-500 mb-1">Habitación</p>
-                          <p className="font-semibold text-primary">
-                            {item.items[0].selectedRooms[roomIndex].name}
-                          </p>
-                          <p className="text-xs text-gray-600 mt-1">
-                            Ocupación: {occupancy === 'single' ? 'Simple' : occupancy === 'double' ? 'Doble' : occupancy === 'triple' ? 'Triple' : 'Cuádruple'}
-                          </p>
+                      {/* Habitaciones reservadas */}
+                      {roomReservations.length > 0 && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-semibold text-gray-700">Habitaciones</p>
+                            <Chip size="sm" className="bg-[#0c3f5b] text-white">
+                              {roomReservations.length} {roomReservations.length === 1 ? 'habitación' : 'habitaciones'}
+                            </Chip>
+                          </div>
+                          <div className="space-y-2">
+                            {roomReservations.map((reservation: any, idx: number) => {
+                              const room = item.items?.[0]?.selectedRooms?.[reservation.roomIndex]
+                              if (!room) return null
+                              
+                              return (
+                                <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1">
+                                      <p className="font-semibold text-gray-900 text-sm">{room.name}</p>
+                                      <div className="flex items-center gap-2 mt-1 text-xs text-gray-600">
+                                        <Users size={12} />
+                                        <span>
+                                          {reservation.adults} adulto{reservation.adults > 1 ? 's' : ''}
+                                          {reservation.children > 0 && `, ${reservation.children} niño${reservation.children > 1 ? 's' : ''}`}
+                                          {reservation.infants > 0 && `, ${reservation.infants} infante${reservation.infants > 1 ? 's' : ''}`}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <Chip size="sm" variant="flat" className="text-xs">
+                                      {reservation.occupancy === 'single' ? 'Simple' : 
+                                       reservation.occupancy === 'double' ? 'Doble' : 
+                                       reservation.occupancy === 'triple' ? 'Triple' : 'Cuádruple'}
+                                    </Chip>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
                         </div>
                       )}
                       
@@ -706,13 +822,20 @@ function CheckoutContent() {
                         </div>
                       )}
                       
-                      {/* Huéspedes */}
-                      <div className="flex items-center gap-2">
-                        <Users size={16} className="text-primary flex-shrink-0" />
-                        <span>
-                          {adults + children + infants} persona{adults + children + infants > 1 ? 's' : ''}
-                          {' '}({adults} adulto{adults > 1 ? 's' : ''}{children > 0 ? `, ${children} niño${children > 1 ? 's' : ''}` : ''}{infants > 0 ? `, ${infants} infante${infants > 1 ? 's' : ''}` : ''})
-                        </span>
+                      {/* Total de huéspedes */}
+                      <div className="bg-blue-50 p-3 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Users size={16} className="text-[#0c3f5b] flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-gray-600">Total de huéspedes</p>
+                            <p className="font-semibold text-gray-900">
+                              {adults + children + infants} persona{adults + children + infants > 1 ? 's' : ''}
+                            </p>
+                            <p className="text-xs text-gray-600 mt-0.5">
+                              {adults} adulto{adults > 1 ? 's' : ''}{children > 0 ? `, ${children} niño${children > 1 ? 's' : ''}` : ''}{infants > 0 ? `, ${infants} infante${infants > 1 ? 's' : ''}` : ''}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                     

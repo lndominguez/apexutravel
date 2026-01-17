@@ -1,7 +1,9 @@
 'use client'
 
-import { Button, Select, SelectItem, Chip } from '@heroui/react'
-import { Plus, X, Users, Bed, Minus, Baby } from 'lucide-react'
+import { Button, Chip } from '@heroui/react'
+import { Plus, X, Bed, Eye } from 'lucide-react'
+import { useState } from 'react'
+import { RoomSelectionModal } from './RoomSelectionModal'
 
 interface RoomReservation {
   id: string
@@ -17,7 +19,7 @@ interface RoomReservationsPanelProps {
   roomReservations: RoomReservation[]
   duration: { nights: number; days?: number }
   isPackage?: boolean  // true = precio combo fijo, false = precio por noches
-  onAddRoom: () => void
+  onAddRoom: (roomData?: Partial<RoomReservation>) => void
   onRemoveRoom: (id: string) => void
   onUpdateRoom: (id: string, updates: Partial<RoomReservation>) => void
   calculateRoomPrice: (reservation: RoomReservation) => number
@@ -26,19 +28,18 @@ interface RoomReservationsPanelProps {
 // Reglas estándar de la industria hotelera:
 // - Adultos (18+) y Niños (2-17) SÍ cuentan para la ocupancy
 // - Infantes (0-2) NO cuentan para ocupancy (no ocupan cama)
-// - Validación: adults + children <= capacidad de la habitación
+// - El tipo de habitación define la cantidad EXACTA de personas:
+//   * Single = 1 persona (1 adulto o 1 niño)
+//   * Double = 2 personas (2 adultos, 1 adulto + 1 niño, o 2 niños)
+//   * Triple = 3 personas
+//   * Quad = 4 personas
+// - Una persona NO puede reservar una habitación doble (el hotel perdería dinero)
+// - El precio es por tipo de habitación, no por capacidad máxima
 const OCCUPANCY_LIMITS: Record<string, { maxOccupancy: number; maxInfants: number }> = {
   single: { maxOccupancy: 1, maxInfants: 2 },   // 1 persona (adulto o niño) + hasta 2 infantes
   double: { maxOccupancy: 2, maxInfants: 2 },   // 2 personas (adultos/niños) + hasta 2 infantes
   triple: { maxOccupancy: 3, maxInfants: 2 },   // 3 personas (adultos/niños) + hasta 2 infantes
   quad: { maxOccupancy: 4, maxInfants: 2 }      // 4 personas (adultos/niños) + hasta 2 infantes
-}
-
-const MIN_OCCUPANCY: Record<string, number> = {
-  single: 1,
-  double: 2,
-  triple: 3,
-  quad: 4
 }
 
 export function RoomReservationsPanel({
@@ -51,60 +52,47 @@ export function RoomReservationsPanel({
   onUpdateRoom,
   calculateRoomPrice
 }: RoomReservationsPanelProps) {
-  const normalizeGuestsForOccupancy = (
-    occupancy: string,
-    adults: number,
-    children: number,
-    infants: number
-  ) => {
-    const limits = OCCUPANCY_LIMITS[occupancy] || { maxOccupancy: 4, maxInfants: 2 }
-    const minOcc = MIN_OCCUPANCY[occupancy] || 1
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [viewingRoomIndex, setViewingRoomIndex] = useState<number | null>(null)
+  const [editingReservationId, setEditingReservationId] = useState<string | null>(null)
 
-    // Regla clave: si cambias a SINGLE y venías con 2+, debe resetear a 1.
-    if (occupancy === 'single' && (adults + children) > 1) {
-      return {
-        adults: 1,
-        children: 0,
-        infants: Math.min(infants, limits.maxInfants)
-      }
+  const handleSelectRoom = (roomIndex: number, adults: number, children: number, infants: number) => {
+    // Determinar la ocupancy según la cantidad de personas
+    const totalGuests = adults + children
+    const room = selectedRooms[roomIndex]
+    
+    let occupancy = 'double'
+    if (room?.occupancy && room.occupancy.length > 0) {
+      // Buscar la ocupancy que mejor se ajuste
+      if (totalGuests === 1 && room.occupancy.includes('single')) occupancy = 'single'
+      else if (totalGuests === 2 && room.occupancy.includes('double')) occupancy = 'double'
+      else if (totalGuests === 3 && room.occupancy.includes('triple')) occupancy = 'triple'
+      else if (totalGuests === 4 && room.occupancy.includes('quad')) occupancy = 'quad'
+      else occupancy = room.occupancy[0]
     }
 
-    let nextAdults = Math.max(0, adults)
-    let nextChildren = Math.max(0, children)
-
-    // Asegurar mínimo según ocupación
-    if ((nextAdults + nextChildren) < minOcc) {
-      nextAdults = minOcc
-      nextChildren = 0
+    if (editingReservationId) {
+      onUpdateRoom(editingReservationId, {
+        roomIndex,
+        occupancy,
+        adults,
+        children,
+        infants
+      })
+    } else {
+      // Agregar nueva habitación con todos los datos
+      onAddRoom({
+        roomIndex,
+        occupancy,
+        adults,
+        children,
+        infants
+      })
     }
-
-    // No exceder máximo
-    while ((nextAdults + nextChildren) > limits.maxOccupancy) {
-      if (nextChildren > 0) nextChildren -= 1
-      else nextAdults = Math.max(minOcc, nextAdults - 1)
-    }
-
-    // Validación general: al menos 1 persona (adulto o niño)
-    if ((nextAdults + nextChildren) < 1) {
-      nextAdults = 1
-      nextChildren = 0
-    }
-
-    return {
-      adults: nextAdults,
-      children: nextChildren,
-      infants: Math.min(Math.max(0, infants), limits.maxInfants)
-    }
-  }
-  
-  const getOccupancyLabel = (occ: string) => {
-    const labels: Record<string, string> = {
-      single: 'Simple',
-      double: 'Doble',
-      triple: 'Triple',
-      quad: 'Cuádruple'
-    }
-    return labels[occ] || occ
+    
+    // Cerrar el modal
+    setIsModalOpen(false)
+    setEditingReservationId(null)
   }
 
   return (
@@ -126,7 +114,11 @@ export function RoomReservationsPanel({
             size="sm"
             color="primary"
             startContent={<Plus size={16} />}
-            onPress={onAddRoom}
+            onPress={() => {
+              setEditingReservationId(null)
+              setViewingRoomIndex(null)
+              setIsModalOpen(true)
+            }}
           >
             Agregar habitación
           </Button>
@@ -142,221 +134,60 @@ export function RoomReservationsPanel({
               : 0
             const totalPrice = calculateRoomPrice(reservation)
             const limits = OCCUPANCY_LIMITS[reservation.occupancy] || { maxOccupancy: 4, maxInfants: 2 }
-            const minOcc = MIN_OCCUPANCY[reservation.occupancy] || 1
             const currentOccupancy = reservation.adults + reservation.children
-            const remainingOccupancy = limits.maxOccupancy - currentOccupancy
+
+            const getOccupancyLabel = (occ: string) => {
+              const labels: Record<string, string> = {
+                single: 'Simple',
+                double: 'Doble',
+                triple: 'Triple',
+                quad: 'Cuádruple'
+              }
+              return labels[occ] || occ
+            }
 
             return (
-              <div key={reservation.id} className="bg-white border-2 border-gray-200 rounded-xl p-4 hover:border-[#0c3f5b]/30 transition-colors">
+              <div key={reservation.id} className="bg-white border-2 border-[#0c3f5b] rounded-xl p-4 shadow-sm transition-all">
                 <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-[#0c3f5b]/10 rounded-lg">
-                      <Bed size={16} className="text-[#0c3f5b]" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="p-1.5 bg-[#0c3f5b] rounded-lg">
+                        <Bed size={16} className="text-white" />
+                      </div>
+                      <span className="text-sm font-bold text-gray-900">Habitación {index + 1}</span>
                     </div>
-                    <span className="text-sm font-semibold text-gray-900">Habitación {index + 1}</span>
+                    <p className="text-sm text-default-700 font-medium ml-8">{room?.name || 'Sin nombre'}</p>
+                    <p className="text-xs text-default-500 ml-8">
+                      {reservation.adults} adulto{reservation.adults !== 1 ? 's' : ''}
+                      {reservation.children > 0 && `, ${reservation.children} niño${reservation.children !== 1 ? 's' : ''}`}
+                      {reservation.infants > 0 && `, ${reservation.infants} infante${reservation.infants !== 1 ? 's' : ''}`}
+                    </p>
                   </div>
-                  <Button
-                    isIconOnly
-                    size="sm"
-                    variant="light"
-                    color="danger"
-                    onPress={() => onRemoveRoom(reservation.id)}
-                  >
-                    <X size={16} />
-                  </Button>
-                </div>
-
-                {/* Selector de habitación */}
-                <div className="mb-3">
-                  <Select
-                    label="Tipo de habitación"
-                    selectedKeys={[reservation.roomIndex.toString()]}
-                    disallowEmptySelection={true}
-                    isRequired
-                    onChange={(e) => {
-                      const newIndex = parseInt(e.target.value)
-                      if (isNaN(newIndex)) return // Prevenir valores inválidos
-                      const newRoom = selectedRooms[newIndex]
-                      const desiredOccupancy =
-                        (newRoom?.occupancy?.includes(reservation.occupancy) ? reservation.occupancy : undefined) ||
-                        newRoom?.occupancy?.[0] ||
-                        'double'
-
-                      const normalized = normalizeGuestsForOccupancy(
-                        desiredOccupancy,
-                        reservation.adults,
-                        reservation.children,
-                        reservation.infants
-                      )
-
-                      onUpdateRoom(reservation.id, {
-                        roomIndex: newIndex,
-                        occupancy: desiredOccupancy,
-                        ...normalized
-                      })
-                    }}
-                    size="sm"
-                    classNames={{
-                      trigger: "border-gray-200",
-                      value: "text-sm"
-                    }}
-                  >
-                    {selectedRooms.map((r: any, idx: number) => (
-                      <SelectItem key={idx.toString()} textValue={r.name}>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">{r.name}</span>
-                          <span className="text-xs text-gray-500">${r.capacityPrices?.double?.adult || 0}/noche</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </Select>
-                </div>
-
-                {/* Selector de ocupancy */}
-                {room?.occupancy && room.occupancy.length > 1 && (
-                  <div className="mb-3">
-                    <Select
-                      label="Ocupación"
-                      selectedKeys={[reservation.occupancy]}
-                      disallowEmptySelection={true}
-                      isRequired
-                      onChange={(e) => {
-                        const newOccupancy = e.target.value
-                        if (!newOccupancy) return // Prevenir valores vacíos
-                        const normalized = normalizeGuestsForOccupancy(
-                          newOccupancy,
-                          reservation.adults,
-                          reservation.children,
-                          reservation.infants
-                        )
-                        onUpdateRoom(reservation.id, { occupancy: newOccupancy, ...normalized })
-                      }}
+                  <div className="flex items-center gap-1">
+                    <Button
+                      isIconOnly
                       size="sm"
-                      classNames={{
-                        trigger: "border-gray-200",
-                        value: "text-sm"
+                      variant="flat"
+                      color="primary"
+                      onPress={() => {
+                        setEditingReservationId(reservation.id)
+                        setViewingRoomIndex(reservation.roomIndex)
+                        setIsModalOpen(true)
                       }}
+                      title="Ver detalles"
                     >
-                      {room.occupancy.map((occ: string) => (
-                        <SelectItem key={occ} textValue={getOccupancyLabel(occ)}>
-                          {getOccupancyLabel(occ)}
-                        </SelectItem>
-                      ))}
-                    </Select>
-                  </div>
-                )}
-
-             
-                {/* Distribución de huéspedes */}
-                <div className="space-y-2 mb-3">
-                  {/* Adultos */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Users size={14} className="text-[#0c3f5b]" />
-                      <span className="text-xs text-gray-700">Adultos</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="flat"
-                        className="min-w-6 h-6"
-                        onPress={() => {
-                          const newAdults = Math.max(0, reservation.adults - 1)
-                          // Respetar mínimo por ocupación
-                          if (newAdults + reservation.children >= minOcc) {
-                            onUpdateRoom(reservation.id, { adults: newAdults })
-                          }
-                        }}
-                        isDisabled={reservation.adults === 0 || (reservation.adults - 1 + reservation.children) < minOcc}
-                      >
-                        <Minus size={12} />
-                      </Button>
-                      <span className="w-6 text-center text-sm font-semibold">{reservation.adults}</span>
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        className="bg-[#0c3f5b] text-white min-w-6 h-6"
-                        onPress={() => onUpdateRoom(reservation.id, { 
-                          adults: reservation.adults + 1
-                        })}
-                        isDisabled={currentOccupancy >= limits.maxOccupancy}
-                      >
-                        <Plus size={12} />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Niños */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Baby size={14} className="text-[#ec9c12]" />
-                      <span className="text-xs text-gray-700">Niños (2-17 años)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="flat"
-                        className="min-w-6 h-6"
-                        onPress={() => {
-                          const newChildren = Math.max(0, reservation.children - 1)
-                          // Respetar mínimo por ocupación
-                          if (reservation.adults + newChildren >= minOcc) {
-                            onUpdateRoom(reservation.id, { children: newChildren })
-                          }
-                        }}
-                        isDisabled={reservation.children === 0 || (reservation.adults + reservation.children - 1) < minOcc}
-                      >
-                        <Minus size={12} />
-                      </Button>
-                      <span className="w-6 text-center text-sm font-semibold">{reservation.children}</span>
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        className="bg-[#ec9c12] text-white min-w-6 h-6"
-                        onPress={() => onUpdateRoom(reservation.id, { 
-                          children: reservation.children + 1
-                        })}
-                        isDisabled={currentOccupancy >= limits.maxOccupancy}
-                      >
-                        <Plus size={12} />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Infantes */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Baby size={14} className="text-[#f1c203]" />
-                      <span className="text-xs text-gray-700">Infantes (0-2 años)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="flat"
-                        className="min-w-6 h-6"
-                        onPress={() => onUpdateRoom(reservation.id, { 
-                          infants: Math.max(0, reservation.infants - 1) 
-                        })}
-                        isDisabled={reservation.infants === 0}
-                      >
-                        <Minus size={12} />
-                      </Button>
-                      <span className="w-6 text-center text-sm font-semibold">{reservation.infants}</span>
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        className="bg-[#f1c203] text-white min-w-6 h-6"
-                        onPress={() => onUpdateRoom(reservation.id, { 
-                          infants: reservation.infants + 1
-                        })}
-                        isDisabled={reservation.infants >= limits.maxInfants}
-                      >
-                        <Plus size={12} />
-                      </Button>
-                    </div>
+                      <Eye size={16} />
+                    </Button>
+                    <Button
+                      isIconOnly
+                      size="sm"
+                      variant="light"
+                      color="danger"
+                      onPress={() => onRemoveRoom(reservation.id)}
+                      title="Eliminar"
+                    >
+                      <X size={16} />
+                    </Button>
                   </div>
                 </div>
 
@@ -385,12 +216,29 @@ export function RoomReservationsPanel({
             variant="bordered"
             className="w-full border-2 border-dashed border-gray-300 hover:border-[#0c3f5b] hover:bg-[#0c3f5b]/5"
             startContent={<Plus size={16} />}
-            onPress={onAddRoom}
+            onPress={() => {
+              setEditingReservationId(null)
+              setViewingRoomIndex(null)
+              setIsModalOpen(true)
+            }}
           >
             Agregar otra habitación
           </Button>
         </div>
       )}
+
+      {/* Modal de selección de habitaciones */}
+      <RoomSelectionModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false)
+          setViewingRoomIndex(null)
+          setEditingReservationId(null)
+        }}
+        availableRooms={selectedRooms}
+        onSelectRoom={handleSelectRoom}
+        selectedRoomIndexes={viewingRoomIndex !== null ? [viewingRoomIndex] : []}
+      />
     </div>
   )
 }

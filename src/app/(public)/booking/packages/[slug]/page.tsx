@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect, useRef } from 'react'
 import { Card, CardBody, Button, Chip, Image, Tabs, Tab, Input, DatePicker, Popover, PopoverTrigger, PopoverContent, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Select, SelectItem } from '@heroui/react'
-import { MapPin, Calendar, Users, Check, X, Star, Hotel as HotelIcon, ArrowLeft, Info, ChevronLeft, ChevronRight, Plus, Minus, Bed, Utensils, FileText, DoorOpen, Sparkles, Shield, Baby, Dog } from 'lucide-react'
+import { MapPin, Calendar, Users, Check, X, Star, Hotel as HotelIcon, ArrowLeft, Info, ChevronLeft, ChevronRight, Plus, Minus, Bed, Utensils, FileText, DoorOpen, Sparkles, Shield, Baby, Dog, Package, Building2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { SearchLayout } from '@/components/layout/SearchLayout'
@@ -128,15 +128,15 @@ export default function PackageDetailPage({ params }: { params: Promise<{ slug: 
   }
 
   // Funciones para manejar múltiples habitaciones (PACKAGES - precio combo, NO por noches)
-  const addRoomReservation = () => {
+  const addRoomReservation = (roomData?: Partial<RoomReservation>) => {
     const defaultOcc = selectedRooms[0]?.occupancy?.[0] || 'double'
     const newReservation: RoomReservation = {
-      id: `room-${Date.now()}`,
-      roomIndex: 0,
-      occupancy: defaultOcc,
-      adults: getMinOccupancyFor(defaultOcc),
-      children: 0,
-      infants: 0
+      id: `room-${Date.now()}-${Math.random()}`,
+      roomIndex: roomData?.roomIndex ?? 0,
+      occupancy: roomData?.occupancy ?? defaultOcc,
+      adults: roomData?.adults ?? getMinOccupancyFor(roomData?.occupancy ?? defaultOcc),
+      children: roomData?.children ?? 0,
+      infants: roomData?.infants ?? 0
     }
     setRoomReservations([...roomReservations, newReservation])
   }
@@ -387,115 +387,66 @@ export default function PackageDetailPage({ params }: { params: Promise<{ slug: 
 
                 </div>
 
-                <Card>
-                  <CardBody className="p-3 space-y-3">
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-700 mb-1">Habitación</h3>
-                      {selectedRooms && selectedRooms.length > 0 ? (
-                        <Select
-                          label="Habitación"
-                          placeholder="Selecciona una habitación"
-                          selectedKeys={[selectedRoomIndex.toString()]}
-                          defaultSelectedKeys={["0"]}
-                          onChange={(e) => {
-                            const newIndex = parseInt(e.target.value)
-                            setSelectedRoomIndex(newIndex)
-                            setRoomImageIndex(0)
-
-                            // Sincronizar con la primera reserva real para que el precio coincida
-                            const first = roomReservations?.[0]
-                            if (first) {
-                              const newRoom = selectedRooms[newIndex]
-                              const desiredOccupancy =
-                                (newRoom?.occupancy?.includes(first.occupancy) ? first.occupancy : undefined) ||
-                                newRoom?.occupancy?.[0] ||
-                                'double'
-
-                              const minOcc = getMinOccupancyFor(desiredOccupancy)
-                              const nextInfants = first.infants || 0
-
-                              updateRoomReservation(first.id, {
-                                roomIndex: newIndex,
-                                occupancy: desiredOccupancy,
-                                adults: desiredOccupancy === 'single' ? 1 : minOcc,
-                                children: 0,
-                                infants: nextInfants
-                              })
-                            }
-                          }}
-                          className="w-full"
-                          classNames={{
-                            trigger: "border-[#0c3f5b]/20 data-[hover=true]:border-[#0c3f5b] min-h-[48px]",
-                            value: "text-[#0c3f5b] font-semibold",
-                            popoverContent: "min-w-[420px]"
-                          }}
-                        >
-                          {selectedRooms.map((room: any, idx: number) => (
-                            <SelectItem
-                              key={idx.toString()}
-                              textValue={room.name}
-                              className="py-2"
-                            >
-                              <div className="flex justify-between items-center gap-3">
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-semibold text-sm truncate">{room.name}</p>
-                                  {room.plan && (
-                                    <p className="text-xs text-gray-500 mt-0.5">
-                                      {room.plan === 'all_inclusive' ? 'Todo incluido' :
-                                       room.plan === 'full_board' ? 'Pensión completa' :
-                                       room.plan === 'half_board' ? 'Media pensión' :
-                                       room.plan === 'breakfast' ? 'Desayuno' : 'Solo alojamiento'}
-                                    </p>
-                                  )}
-                                </div>
-                                {room.availability != null && (
-                                  <Chip size="sm" className="bg-[#ec9c12] text-white flex-shrink-0">
-                                    {room.availability} disp.
-                                  </Chip>
-                                )}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </Select>
-                      ) : (
-                        <p className="text-sm text-gray-500">No hay habitaciones disponibles</p>
-                      )}
+                {/* Información del Paquete - Compacta */}
+                <Card className="h-fit">
+                  <CardBody className="p-4">
+                    <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                      <Package size={18} className="text-[#0c3f5b]" />
+                      Información del Paquete
+                    </h3>
+                    
+                    {/* Duración destacada */}
+                    <div className="mb-3 p-3 bg-gradient-to-br from-[#0c3f5b]/5 to-[#0c3f5b]/10 rounded-lg border border-[#0c3f5b]/20">
+                      <div className="flex items-center justify-center gap-3">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-[#0c3f5b]">{duration.nights}</div>
+                          <div className="text-xs text-gray-600">noches</div>
+                        </div>
+                        <div className="text-gray-400 text-lg">/</div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-[#0c3f5b]">{duration.days}</div>
+                          <div className="text-xs text-gray-600">días</div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-700 mb-1">Fotos de la habitación</h3>
-                      {selectedRooms[selectedRoomIndex]?.images && selectedRooms[selectedRoomIndex].images.length > 0 ? (
-                        <div className="relative">
-                          <div className="aspect-[21/9] rounded-lg overflow-hidden bg-gray-100">
-                            <img
-                              src={selectedRooms[selectedRoomIndex].images[roomImageIndex]}
-                              alt={`Habitación ${selectedRooms[selectedRoomIndex].name}`}
-                              className="w-full h-full object-cover"
-                            />
+                    {/* Info del hotel */}
+                    <div className="space-y-2 mb-3">
+                      {hotelInfo?.stars && (
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-0.5">
+                            {[...Array(5)].map((_, i) => (
+                              <Star key={i} size={14} fill={i < hotelInfo.stars ? "#f1c203" : "none"} className={i < hotelInfo.stars ? "text-[#f1c203]" : "text-gray-300"} />
+                            ))}
                           </div>
-                          {selectedRooms[selectedRoomIndex].images.length > 1 && (
-                            <div className="grid grid-cols-6 gap-1 mt-1.5">
-                              {selectedRooms[selectedRoomIndex].images.slice(0, 6).map((img: string, idx: number) => (
-                                <div
-                                  key={idx}
-                                  className={`aspect-square rounded-md overflow-hidden cursor-pointer transition-all ${
-                                    roomImageIndex === idx ? 'ring-2 ring-[#0c3f5b]' : 'opacity-60 hover:opacity-100'
-                                  }`}
-                                  onClick={() => setRoomImageIndex(idx)}
-                                >
-                                  <img src={img} alt={`Vista ${idx + 1}`} className="w-full h-full object-cover" />
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                          <span className="text-xs text-gray-600">{hotelInfo.stars} estrellas</span>
                         </div>
-                      ) : (
-                        <div className="aspect-[21/9] rounded-lg bg-gray-100 flex items-center justify-center">
-                          <p className="text-sm text-gray-500">No hay fotos disponibles</p>
+                      )}
+                      {location && (
+                        <div className="flex items-start gap-2">
+                          <MapPin size={14} className="text-[#0c3f5b] mt-0.5 flex-shrink-0" />
+                          <span className="text-xs text-gray-600">{location.city}, {location.country}</span>
                         </div>
                       )}
                     </div>
 
+                    {/* Amenidades del hotel */}
+                    {hotelAmenities && hotelAmenities.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-semibold text-gray-700 mb-2">Servicios del hotel</h4>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {hotelAmenities.slice(0, 6).map((amenity: string, idx: number) => (
+                            <div key={idx} className="flex items-center gap-1.5 text-xs text-gray-600">
+                              <Check size={12} className="text-[#0c3f5b] flex-shrink-0" />
+                              <span className="truncate">{amenity}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {hotelAmenities.length > 6 && (
+                          <p className="text-xs text-gray-500 mt-2">+{hotelAmenities.length - 6} más</p>
+                        )}
+                      </div>
+                    )}
                   </CardBody>
                 </Card>
 
