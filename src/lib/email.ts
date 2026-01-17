@@ -1,32 +1,7 @@
-import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 
-// Configuración del transportador de email
-const createTransporter = () => {
-  // Verificar variables de entorno
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    throw new Error('Variables de entorno EMAIL_USER y EMAIL_PASS son requeridas')
-  }
-
-  console.log('📧 Configurando transportador de email...')
-  console.log('Host:', process.env.EMAIL_HOST || 'smtp.gmail.com')
-  console.log('Port:', process.env.EMAIL_PORT || '587')
-  console.log('User:', process.env.EMAIL_USER)
-
-  return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.EMAIL_PORT || '587'),
-    secure: false, // true para 465, false para otros puertos
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-    tls: {
-      rejectUnauthorized: false // Evitar problemas con certificados
-    },
-    debug: true, // Habilitar debug
-    logger: true // Habilitar logging
-  })
-}
+// Inicializar Resend
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 // Tipos para los emails
 interface EmailOptions {
@@ -39,28 +14,39 @@ interface EmailOptions {
 // Función principal para enviar emails
 export const sendEmail = async (options: EmailOptions) => {
   try {
-    console.log('📧 Iniciando envío de email...')
+    // Verificar si el envío de emails está habilitado
+    if (process.env.EMAIL_ENABLED !== 'true') {
+      console.log('⚠️ Envío de emails deshabilitado (EMAIL_ENABLED=false)')
+      return { success: false, error: 'Email sending is disabled' }
+    }
+
+    if (!process.env.RESEND_API_KEY) {
+      console.error('❌ RESEND_API_KEY no configurada')
+      return { success: false, error: 'RESEND_API_KEY not configured' }
+    }
+
+    console.log('📧 Iniciando envío de email con Resend...')
     console.log('Para:', options.to)
     console.log('Asunto:', options.subject)
     
-    const transporter = createTransporter()
-    
-    const mailOptions = {
-      from: `"${process.env.APP_NAME || 'ApexuTravel'}" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`,
+    const result = await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'APEXUCODE <sales@apexucode.com>',
       to: options.to,
       subject: options.subject,
       html: options.html,
-      text: options.text || options.html.replace(/<[^>]*>/g, ''), // Fallback text
-    }
+      text: options.text,
+      replyTo: process.env.EMAIL_REPLY_TO
+    })
 
-    console.log('📤 Enviando email desde:', mailOptions.from)
+    if (result.error) {
+      console.error('❌ Error de Resend:', result.error)
+      return { success: false, error: result.error.message }
+    }
     
-    const result = await transporter.sendMail(mailOptions)
-    console.log('✅ Email enviado exitosamente!')
-    console.log('Message ID:', result.messageId)
-    console.log('Response:', result.response)
+    console.log('✅ Email enviado exitosamente con Resend!')
+    console.log('Message ID:', result.data?.id)
     
-    return { success: true, messageId: result.messageId }
+    return { success: true, messageId: result.data?.id }
   } catch (error) {
     console.error('❌ Error enviando email:')
     console.error('Error completo:', error)

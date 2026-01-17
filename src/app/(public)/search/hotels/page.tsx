@@ -195,7 +195,7 @@ function HotelSearchContent() {
                           <div>
                             <p className="text-xs text-gray-500">Desde</p>
                             <p className="text-xl font-bold text-primary">
-                              ${getMinPrice(hotel.roomTypes).toFixed(0)}
+                              ${getMinPrice(hotel.roomTypes).toFixed(2)}
                             </p>
                             <p className="text-xs text-gray-500">por noche</p>
                           </div>

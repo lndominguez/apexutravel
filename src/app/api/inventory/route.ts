@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || 'active'
     const season = searchParams.get('season')
     const pricingMode = searchParams.get('pricingMode')
+    const inventoryCode = searchParams.get('inventoryCode')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
 
@@ -43,6 +44,10 @@ export async function GET(request: NextRequest) {
     
     if (pricingMode) {
       filters.pricingMode = pricingMode
+    }
+
+    if (inventoryCode) {
+      filters.inventoryCode = inventoryCode
     }
 
 

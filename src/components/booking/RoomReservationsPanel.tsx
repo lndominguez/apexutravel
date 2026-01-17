@@ -34,6 +34,13 @@ const OCCUPANCY_LIMITS: Record<string, { maxOccupancy: number; maxInfants: numbe
   quad: { maxOccupancy: 4, maxInfants: 2 }      // 4 personas (adultos/niños) + hasta 2 infantes
 }
 
+const MIN_OCCUPANCY: Record<string, number> = {
+  single: 1,
+  double: 2,
+  triple: 3,
+  quad: 4
+}
+
 export function RoomReservationsPanel({
   selectedRooms,
   roomReservations,
@@ -44,6 +51,51 @@ export function RoomReservationsPanel({
   onUpdateRoom,
   calculateRoomPrice
 }: RoomReservationsPanelProps) {
+  const normalizeGuestsForOccupancy = (
+    occupancy: string,
+    adults: number,
+    children: number,
+    infants: number
+  ) => {
+    const limits = OCCUPANCY_LIMITS[occupancy] || { maxOccupancy: 4, maxInfants: 2 }
+    const minOcc = MIN_OCCUPANCY[occupancy] || 1
+
+    // Regla clave: si cambias a SINGLE y venías con 2+, debe resetear a 1.
+    if (occupancy === 'single' && (adults + children) > 1) {
+      return {
+        adults: 1,
+        children: 0,
+        infants: Math.min(infants, limits.maxInfants)
+      }
+    }
+
+    let nextAdults = Math.max(0, adults)
+    let nextChildren = Math.max(0, children)
+
+    // Asegurar mínimo según ocupación
+    if ((nextAdults + nextChildren) < minOcc) {
+      nextAdults = minOcc
+      nextChildren = 0
+    }
+
+    // No exceder máximo
+    while ((nextAdults + nextChildren) > limits.maxOccupancy) {
+      if (nextChildren > 0) nextChildren -= 1
+      else nextAdults = Math.max(minOcc, nextAdults - 1)
+    }
+
+    // Validación general: al menos 1 persona (adulto o niño)
+    if ((nextAdults + nextChildren) < 1) {
+      nextAdults = 1
+      nextChildren = 0
+    }
+
+    return {
+      adults: nextAdults,
+      children: nextChildren,
+      infants: Math.min(Math.max(0, infants), limits.maxInfants)
+    }
+  }
   
   const getOccupancyLabel = (occ: string) => {
     const labels: Record<string, string> = {
@@ -90,6 +142,7 @@ export function RoomReservationsPanel({
               : 0
             const totalPrice = calculateRoomPrice(reservation)
             const limits = OCCUPANCY_LIMITS[reservation.occupancy] || { maxOccupancy: 4, maxInfants: 2 }
+            const minOcc = MIN_OCCUPANCY[reservation.occupancy] || 1
             const currentOccupancy = reservation.adults + reservation.children
             const remainingOccupancy = limits.maxOccupancy - currentOccupancy
 
@@ -124,10 +177,22 @@ export function RoomReservationsPanel({
                       const newIndex = parseInt(e.target.value)
                       if (isNaN(newIndex)) return // Prevenir valores inválidos
                       const newRoom = selectedRooms[newIndex]
-                      const newOccupancy = newRoom?.occupancy?.[0] || 'double'
-                      onUpdateRoom(reservation.id, { 
+                      const desiredOccupancy =
+                        (newRoom?.occupancy?.includes(reservation.occupancy) ? reservation.occupancy : undefined) ||
+                        newRoom?.occupancy?.[0] ||
+                        'double'
+
+                      const normalized = normalizeGuestsForOccupancy(
+                        desiredOccupancy,
+                        reservation.adults,
+                        reservation.children,
+                        reservation.infants
+                      )
+
+                      onUpdateRoom(reservation.id, {
                         roomIndex: newIndex,
-                        occupancy: newOccupancy
+                        occupancy: desiredOccupancy,
+                        ...normalized
                       })
                     }}
                     size="sm"
@@ -158,7 +223,13 @@ export function RoomReservationsPanel({
                       onChange={(e) => {
                         const newOccupancy = e.target.value
                         if (!newOccupancy) return // Prevenir valores vacíos
-                        onUpdateRoom(reservation.id, { occupancy: newOccupancy })
+                        const normalized = normalizeGuestsForOccupancy(
+                          newOccupancy,
+                          reservation.adults,
+                          reservation.children,
+                          reservation.infants
+                        )
+                        onUpdateRoom(reservation.id, { occupancy: newOccupancy, ...normalized })
                       }}
                       size="sm"
                       classNames={{
@@ -192,12 +263,12 @@ export function RoomReservationsPanel({
                         className="min-w-6 h-6"
                         onPress={() => {
                           const newAdults = Math.max(0, reservation.adults - 1)
-                          // Asegurar que al menos haya 1 persona (adulto o niño)
-                          if (newAdults + reservation.children >= 1) {
+                          // Respetar mínimo por ocupación
+                          if (newAdults + reservation.children >= minOcc) {
                             onUpdateRoom(reservation.id, { adults: newAdults })
                           }
                         }}
-                        isDisabled={reservation.adults === 0 || (reservation.adults === 1 && reservation.children === 0)}
+                        isDisabled={reservation.adults === 0 || (reservation.adults - 1 + reservation.children) < minOcc}
                       >
                         <Minus size={12} />
                       </Button>
@@ -230,12 +301,12 @@ export function RoomReservationsPanel({
                         className="min-w-6 h-6"
                         onPress={() => {
                           const newChildren = Math.max(0, reservation.children - 1)
-                          // Asegurar que al menos haya 1 persona (adulto o niño)
-                          if (reservation.adults + newChildren >= 1) {
+                          // Respetar mínimo por ocupación
+                          if (reservation.adults + newChildren >= minOcc) {
                             onUpdateRoom(reservation.id, { children: newChildren })
                           }
                         }}
-                        isDisabled={reservation.children === 0 || (reservation.children === 1 && reservation.adults === 0)}
+                        isDisabled={reservation.children === 0 || (reservation.adults + reservation.children - 1) < minOcc}
                       >
                         <Minus size={12} />
                       </Button>
@@ -295,12 +366,12 @@ export function RoomReservationsPanel({
                     {isPackage ? (
                       <>
                         <span className="text-gray-600">Precio combo</span>
-                        <span className="font-bold text-[#0c3f5b]">${totalPrice.toFixed(0)}</span>
+                        <span className="font-bold text-[#0c3f5b]">${totalPrice.toFixed(2)}</span>
                       </>
                     ) : (
                       <>
-                        <span className="text-gray-600">${pricePerNight.toFixed(0)} × {duration.nights} noches</span>
-                        <span className="font-bold text-[#0c3f5b]">${totalPrice.toFixed(0)}</span>
+                        <span className="text-gray-600">${pricePerNight.toFixed(2)} × {duration.nights} noches</span>
+                        <span className="font-bold text-[#0c3f5b]">${totalPrice.toFixed(2)}</span>
                       </>
                     )}
                   </div>

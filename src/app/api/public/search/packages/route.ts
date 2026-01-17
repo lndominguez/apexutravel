@@ -19,10 +19,15 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const destination = searchParams.get('destination') || ''
     const status = searchParams.get('status') || 'published'
+    const featured = searchParams.get('featured')
     const minPrice = searchParams.get('minPrice') ? parseInt(searchParams.get('minPrice')!) : undefined
     const maxPrice = searchParams.get('maxPrice') ? parseInt(searchParams.get('maxPrice')!) : undefined
     
     const andConditions: any[] = [{ type: 'package' }, { status }]
+
+    if (featured === 'true') {
+      andConditions.push({ featured: true })
+    }
     
     if (destination) {
       andConditions.push({

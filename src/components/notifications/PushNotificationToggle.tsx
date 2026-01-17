@@ -4,18 +4,51 @@ import { useState } from 'react'
 import { Button, Switch } from '@heroui/react'
 import { Bell, BellOff } from 'lucide-react'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
-import { unregisterFCMToken } from '@/lib/firebase-client'
 import { toast } from 'sonner'
 
 export function PushNotificationToggle() {
-  const { permission, isSupported, requestPermission } = usePushNotifications()
+  const {
+    permission,
+    isSupported,
+    isSecureContext,
+    pushEnabled,
+    enablePush,
+    disablePush
+  } = usePushNotifications()
   const [isLoading, setIsLoading] = useState(false)
+
+  if (!isSecureContext) {
+    return (
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-default-100 rounded-lg w-full">
+        <BellOff className="w-5 h-5 text-default-400 flex-shrink-0" />
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <p className="text-sm font-medium text-default-700">
+            Notificaciones push no disponibles en esta URL
+          </p>
+          <p className="text-xs text-default-500 break-words">
+            Se requiere HTTPS. En móvil no funciona por IP/HTTP. Usa el dominio en producción.
+          </p>
+        </div>
+        <div className="flex-shrink-0 flex justify-center sm:justify-end">
+          <Button
+            size="sm"
+            variant="flat"
+            onPress={() => {
+              window.open('https://travel.apexucode.com', '_blank')
+            }}
+          >
+            Abrir
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   if (!isSupported) {
     return (
-      <div className="flex items-center gap-3 p-3 bg-default-100 rounded-lg">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-default-100 rounded-lg w-full">
         <BellOff className="w-5 h-5 text-default-400 flex-shrink-0" />
-        <div className="flex-1">
+        <div className="flex-1 min-w-0 overflow-hidden">
           <p className="text-sm font-medium text-default-700">
             Notificaciones push no disponibles
           </p>
@@ -27,56 +60,41 @@ export function PushNotificationToggle() {
     )
   }
 
-  const isEnabled = permission === 'granted'
   const isDenied = permission === 'denied'
 
-  const handleToggle = async () => {
-    if (isEnabled) {
-      // Desactivar notificaciones
-      setIsLoading(true)
-      try {
-        // Obtener el token actual antes de desregistrarlo
-        const { getFCMToken } = await import('@/lib/firebase-client')
-        const token = await getFCMToken()
-        if (token) {
-          await unregisterFCMToken(token)
-          toast.success('Notificaciones push desactivadas')
-          // Recargar para actualizar el estado
-          setTimeout(() => window.location.reload(), 500)
-        }
-      } catch (error) {
-        toast.error('Error al desactivar notificaciones')
-      } finally {
-        setIsLoading(false)
+  const handleToggle = async (nextValue: boolean) => {
+    setIsLoading(true)
+    try {
+      if (nextValue) {
+        await enablePush()
+      } else {
+        await disablePush()
       }
-    } else {
-      // Activar notificaciones
-      setIsLoading(true)
-      try {
-        await requestPermission()
-      } finally {
-        setIsLoading(false)
-      }
+    } catch (error) {
+      console.error('Error toggling push notifications:', error)
+      toast.error('Error actualizando notificaciones push')
+    } finally {
+      setIsLoading(false)
     }
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 p-3 bg-default-50 rounded-lg">
-      <div className="flex items-center gap-3 flex-1">
-        <Bell className={`w-5 h-5 flex-shrink-0 ${isEnabled ? 'text-success' : 'text-default-400'}`} />
-        <div className="flex-1 min-w-0">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-default-50 rounded-lg w-full">
+      <div className="flex items-center gap-3 w-full sm:flex-1 min-w-0 overflow-hidden">
+        <Bell className={`w-5 h-5 flex-shrink-0 ${pushEnabled ? 'text-success' : 'text-default-400'}`} />
+        <div className="flex-1 min-w-0 overflow-hidden">
           <p className="text-sm font-medium text-default-700">
             Notificaciones push
           </p>
           <p className="text-xs text-default-500 truncate">
-            {isEnabled && 'Activas - Recibirás notificaciones en tiempo real'}
+            {pushEnabled && 'Activas - Recibirás notificaciones en tiempo real'}
             {permission === 'default' && 'Habilita para recibir notificaciones'}
             {isDenied && 'Denegadas - Habilítalas en la configuración del navegador'}
           </p>
         </div>
       </div>
 
-      <div className="flex-shrink-0">
+      <div className="flex-shrink-0 w-full sm:w-auto flex justify-center sm:justify-end">
         {isDenied ? (
           <Button
             size="sm"
@@ -89,7 +107,7 @@ export function PushNotificationToggle() {
           </Button>
         ) : (
           <Switch
-            isSelected={isEnabled}
+            isSelected={pushEnabled}
             onValueChange={handleToggle}
             isDisabled={isLoading}
             size="sm"

@@ -1,5 +1,5 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app'
-import { getMessaging, getToken, onMessage, Messaging, isSupported } from 'firebase/messaging'
+import { getMessaging, getToken, onMessage, deleteToken, Messaging, isSupported } from 'firebase/messaging'
 
 let firebaseApp: FirebaseApp | null = null
 let messaging: Messaging | null = null
@@ -76,8 +76,111 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
   return Notification.permission
 }
 
+export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    console.warn('⚠️ Service Workers not supported')
+    return null
+  }
+
+  try {
+    // Reusar el SW existente que controla esta página si existe
+    const existing = await navigator.serviceWorker.getRegistration()
+    if (existing?.active?.scriptURL?.includes('/firebase-messaging-sw.js')) {
+      console.log('✅ Service Worker already registered:', existing.scope)
+      
+      // Verificar si está controlando la página
+      if (!navigator.serviceWorker.controller) {
+        console.log('⏳ Esperando a que el SW tome control...')
+        await new Promise<void>((resolve) => {
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            console.log('✅ Service Worker ahora controla la página')
+            resolve()
+          }, { once: true })
+          
+          // Timeout de seguridad
+          setTimeout(() => resolve(), 2000)
+        })
+      }
+      
+      return existing
+    }
+
+    // Importante: usar scope '/' para que controle TODA la app (incluye /admin, /dashboard, etc.)
+    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+      scope: '/'
+    })
+    
+    console.log('✅ Service Worker registered:', registration.scope)
+    
+    // Esperar a que el service worker esté activo
+    if (registration.installing) {
+      console.log('⏳ Service Worker installing...')
+      await new Promise<void>((resolve) => {
+        registration.installing!.addEventListener('statechange', (e) => {
+          if ((e.target as ServiceWorker).state === 'activated') {
+            console.log('✅ Service Worker activated')
+            resolve()
+          }
+        })
+      })
+    } else if (registration.waiting) {
+      console.log('⏳ Service Worker waiting...')
+      // Forzar activación del SW en espera
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+    } else if (registration.active) {
+      console.log('✅ Service Worker already active')
+    }
+    
+    // Esperar a que el SW tome control de la página
+    if (!navigator.serviceWorker.controller) {
+      console.log('⏳ Esperando a que el SW tome control de la página...')
+      await new Promise<void>((resolve) => {
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          console.log('✅ Service Worker ahora controla la página')
+          resolve()
+        }, { once: true })
+        
+        // Timeout de seguridad de 3 segundos
+        setTimeout(() => {
+          console.log('⚠️ Timeout esperando control del SW')
+          resolve()
+        }, 3000)
+      })
+    }
+    
+    return registration
+  } catch (error) {
+    console.error('❌ Error registering Service Worker:', error)
+    return null
+  }
+}
+
+export async function deleteFCMToken(): Promise<boolean> {
+  try {
+    const m = await getFirebaseMessaging()
+    if (!m) return false
+    const success = await deleteToken(m)
+    if (success) {
+      console.log('✅ FCM token deleted from client')
+    } else {
+      console.warn('⚠️ FCM token delete returned false')
+    }
+    return success
+  } catch (error) {
+    console.error('❌ Error deleting FCM token:', error)
+    return false
+  }
+}
+
 export async function getFCMToken(): Promise<string | null> {
   try {
+    // Primero registrar el service worker
+    const registration = await registerServiceWorker()
+    if (!registration) {
+      console.error('❌ Service Worker registration failed')
+      return null
+    }
+
     const permission = await requestNotificationPermission()
     
     if (permission !== 'granted') {
@@ -97,8 +200,16 @@ export async function getFCMToken(): Promise<string | null> {
     // Limpiar el VAPID key de espacios y saltos de línea
     vapidKey = vapidKey.trim().replace(/\s+/g, '')
 
-    const token = await getToken(messaging, { vapidKey })
+    const token = await getToken(messaging, {
+      vapidKey,
+      serviceWorkerRegistration: registration
+    })
     console.log('✅ FCM token obtained:', token.substring(0, 20) + '...')
+
+    try {
+      window.localStorage.setItem('fcmToken', token)
+    } catch {}
+
     return token
 
   } catch (error) {
@@ -142,6 +253,14 @@ export async function unregisterFCMToken(token: string): Promise<boolean> {
     
     if (data.success) {
       console.log('✅ FCM token unregistered from server')
+
+      try {
+        const stored = window.localStorage.getItem('fcmToken')
+        if (stored === token) {
+          window.localStorage.removeItem('fcmToken')
+        }
+      } catch {}
+
       return true
     } else {
       console.error('❌ Failed to unregister FCM token:', data.error)
@@ -154,12 +273,18 @@ export async function unregisterFCMToken(token: string): Promise<boolean> {
 }
 
 export function onMessageListener(callback: (payload: any) => void) {
+  let unsubscribe: (() => void) | null = null
+
   getFirebaseMessaging().then(messaging => {
     if (!messaging) return
 
-    onMessage(messaging, (payload) => {
+    unsubscribe = onMessage(messaging, (payload) => {
       console.log('📬 Message received:', payload)
       callback(payload)
     })
   })
+
+  return () => {
+    if (unsubscribe) unsubscribe()
+  }
 }

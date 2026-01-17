@@ -21,15 +21,15 @@ const fetcher = async (url: string) => {
 }
 
 export default function FeaturedPackages() {
-  const { data, error, isLoading } = useSWR('/api/public/search/packages?status=published&limit=6', fetcher)
+  const { data, error, isLoading } = useSWR('/api/public/search/packages?status=published&featured=true&limit=8', fetcher)
 
   // Normalizar respuesta de la API
   const packages = data?.packages || []
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
           <Card key={i} className="h-[500px]">
             <CardBody className="p-0">
               <div className="w-full h-56 bg-gradient-to-r from-gray-200 to-gray-300 animate-pulse" />
@@ -58,10 +58,21 @@ export default function FeaturedPackages() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {packages.slice(0, 6).map((pkg: any) => (
-        <PackageCard key={pkg._id} pkg={pkg} />
-      ))}
+    <div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {packages.slice(0, 8).map((pkg: any) => (
+          <PackageCard key={pkg._id} pkg={pkg} />
+        ))}
+      </div>
+
+      <div className="flex justify-center mt-10">
+        <Link
+          href="/search/packages"
+          className="text-sm font-bold text-[#0c3f5b] hover:text-[#ec9c12] transition-colors"
+        >
+          Ver más paquetes
+        </Link>
+      </div>
     </div>
   )
 }

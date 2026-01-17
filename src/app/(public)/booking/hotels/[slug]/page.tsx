@@ -29,6 +29,11 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
     children: number
     infants: number
   }
+
+  const getMinOccupancyFor = (occupancy: string) => {
+    const map: Record<string, number> = { single: 1, double: 2, triple: 3, quad: 4 }
+    return map[occupancy] || 1
+  }
   
   const [roomReservations, setRoomReservations] = useState<RoomReservation[]>([])
   
@@ -58,11 +63,12 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
   // Obtener markup de la oferta
   const offerMarkup = hotel?.pricing?.markup || { type: 'percentage', value: 0 }
   
-  // Calcular duración basada en las fechas seleccionadas
+  // Para hoteles, calcular duración desde fechas o default 1 noche
+  // NOTA: hotel?.duration es legacy (hoteles viejos), nuevos hoteles NO tienen duration fijo
   const duration = startDate && endDateManual ? {
     days: Math.ceil((new Date(endDateManual.toString()).getTime() - new Date(startDate.toString()).getTime()) / (1000 * 60 * 60 * 24)),
     nights: Math.ceil((new Date(endDateManual.toString()).getTime() - new Date(startDate.toString()).getTime()) / (1000 * 60 * 60 * 24))
-  } : hotel?.duration || { days: 3, nights: 2 }
+  } : { days: 1, nights: 1 }
   
   // endDate para compatibilidad
   const endDate = endDateManual
@@ -94,13 +100,46 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
 
   const diffDaysUtc = (start: Date, end: Date) => Math.max(1, Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)))
 
+  const getCheapestRoomSelectionForTwoAdults = (rooms: any[], nights: number) => {
+    if (!Array.isArray(rooms) || rooms.length === 0) {
+      return { roomIndex: 0, occupancy: 'double' as string }
+    }
+
+    let bestIndex = 0
+    let bestOcc = (rooms[0]?.occupancy?.includes('double') ? 'double' : rooms[0]?.occupancy?.[0] || 'double') as string
+    let bestTotal = Number.POSITIVE_INFINITY
+
+    for (let idx = 0; idx < rooms.length; idx++) {
+      const room = rooms[idx]
+      const prices = room?.capacityPrices?.double
+      if (!prices) continue
+
+      const perNight = (Number(prices.adult) || 0) * 2
+      if (!Number.isFinite(perNight) || perNight <= 0) continue
+      const total = perNight * Math.max(1, nights)
+
+      if (total < bestTotal) {
+        bestTotal = total
+        bestIndex = idx
+        bestOcc = 'double'
+      }
+    }
+
+    if (!Number.isFinite(bestTotal)) {
+      return { roomIndex: 0, occupancy: bestOcc }
+    }
+
+    return { roomIndex: bestIndex, occupancy: bestOcc }
+  }
+
   // Funciones para manejar múltiples habitaciones
   const addRoomReservation = () => {
+    const defaultOcc = selectedRooms[0]?.occupancy?.[0] || 'double'
     const newReservation: RoomReservation = {
       id: `room-${Date.now()}`,
       roomIndex: 0,
-      occupancy: selectedRooms[0]?.occupancy?.[0] || 'double',
-      adults: 2,
+      occupancy: defaultOcc,
+      adults: getMinOccupancyFor(defaultOcc),
       children: 0,
       infants: 0
     }
@@ -116,6 +155,16 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
       r.id === id ? { ...r, ...updates } : r
     ))
   }
+
+  // Mantener sincronizado el selector visual de habitación con la primera reserva
+  useEffect(() => {
+    const first = roomReservations?.[0]
+    if (!first) return
+    if (typeof first.roomIndex === 'number' && first.roomIndex !== selectedRoomIndex) {
+      setSelectedRoomIndex(first.roomIndex)
+      setRoomImageIndex(0)
+    }
+  }, [roomReservations, selectedRoomIndex])
 
   const calculateRoomPrice = (reservation: RoomReservation) => {
     const room = selectedRooms[reservation.roomIndex]
@@ -163,7 +212,6 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
         const data = await res.json()
         if (data.success) {
           setHotel(data.data)
-          setSelectedRoomIndex(0)
           setRoomImageIndex(0)
           
           // Setear fechas desde validFrom y calcular fecha de fin basada en duration de la oferta
@@ -178,20 +226,25 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
             setEndDateManual(parseDate(calculatedEndDate.toISOString().split('T')[0]))
           }
 
-          // Inicializar con una habitación por defecto para mostrar precio desde el inicio
+          // Inicializar con la habitación MÁS BARATA (config de portada: 2 adultos)
           const hotelRooms = data.data?.items?.find((item: any) => item.resourceType === 'Hotel')?.selectedRooms
           if (hotelRooms && hotelRooms.length > 0) {
-            const defaultRoom = hotelRooms[0]
-            const defaultOccupancy = defaultRoom?.occupancy?.[0] || 'double'
-            
-            setRoomReservations([{
-              id: `room-${Date.now()}`,
-              roomIndex: 0,
-              occupancy: defaultOccupancy,
-              adults: 2,
-              children: 0,
-              infants: 0
-            }])
+            const nights = data.data?.duration?.nights || 2
+            const cheapest = getCheapestRoomSelectionForTwoAdults(hotelRooms, nights)
+
+            setSelectedRoomIndex(cheapest.roomIndex)
+            setRoomReservations([
+              {
+                id: `room-${Date.now()}`,
+                roomIndex: cheapest.roomIndex,
+                occupancy: cheapest.occupancy,
+                adults: 2,
+                children: 0,
+                infants: 0
+              }
+            ])
+          } else {
+            setSelectedRoomIndex(0)
           }
         }
       } catch (error) {
@@ -237,15 +290,15 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
     }
   }
 
-  // Calcular habitación más barata para mostrar disponibilidad
-  const cheapestRoom = selectedRooms.length > 0 
+  // Calcular habitación más barata (2 adultos / double) para mostrar disponibilidad
+  const cheapestRoom = selectedRooms.length > 0
     ? selectedRooms.reduce((min: any, room: any) => {
-        const minPrice = min?.pricing?.adult || Infinity
-        const roomPrice = room?.pricing?.adult || Infinity
+        const minPrice = min?.capacityPrices?.double?.adult ?? Infinity
+        const roomPrice = room?.capacityPrices?.double?.adult ?? Infinity
         return roomPrice < minPrice ? room : min
       }, null)
     : null
-  const availableStock = cheapestRoom?.availability || 0
+  const availableStock = (cheapestRoom?.availability ?? cheapestRoom?.stock ?? 0) as number
 
   return (
     <SearchLayout
@@ -356,6 +409,29 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
                             const newIndex = parseInt(e.target.value)
                             setSelectedRoomIndex(newIndex)
                             setRoomImageIndex(0)
+
+                            // Sincronizar con la primera reserva real para que el precio coincida
+                            const first = roomReservations?.[0]
+                            if (first) {
+                              const newRoom = selectedRooms[newIndex]
+                              const desiredOccupancy =
+                                (newRoom?.occupancy?.includes(first.occupancy) ? first.occupancy : undefined) ||
+                                newRoom?.occupancy?.[0] ||
+                                'double'
+
+                              const minOcc = getMinOccupancyFor(desiredOccupancy)
+                              const nextAdults = Math.max(minOcc, (first.adults || 0))
+                              const nextChildren = desiredOccupancy === 'single' ? 0 : (first.children || 0)
+                              const nextInfants = first.infants || 0
+
+                              updateRoomReservation(first.id, {
+                                roomIndex: newIndex,
+                                occupancy: desiredOccupancy,
+                                adults: desiredOccupancy === 'single' ? 1 : Math.min(nextAdults, minOcc),
+                                children: desiredOccupancy === 'single' ? 0 : nextChildren,
+                                infants: nextInfants
+                              })
+                            }
                           }}
                           className="w-full"
                           classNames={{
@@ -688,7 +764,7 @@ export default function HotelDetailPage({ params }: { params: Promise<{ slug: st
                     <div className="mb-2">
                       <div className="flex items-end gap-2 flex-wrap">
                         <span className="text-4xl font-black text-white tracking-tight break-all">
-                          ${Math.floor(calculateTotalPrice()).toLocaleString('en-US')}
+                          ${calculateTotalPrice().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                         <span className="text-xl font-bold text-white/40 mb-1">
                           USD

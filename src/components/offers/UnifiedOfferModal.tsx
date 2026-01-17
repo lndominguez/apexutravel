@@ -72,6 +72,7 @@ export default function UnifiedOfferModal({
   const [code, setCode] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<'draft' | 'published' | 'archived'>('draft')
+  const [featured, setFeatured] = useState(false)
   const [isLoadingOfferData, setIsLoadingOfferData] = useState(false)
   const [coverImage, setCoverImage] = useState<string>('')
 
@@ -84,7 +85,14 @@ export default function UnifiedOfferModal({
       }
 
       const item = items[selectedItemIndex]
-      const resourceId = item.hotelInfo.resourceId
+      
+      // Si es un item incluido sin inventario, no hay nada que cargar
+      if (item.included || !item.hotelInfo) {
+        setResourceData(null)
+        return
+      }
+      
+      const resourceId = item.hotelInfo?.resourceId
 
       if (!resourceId) {
         setResourceData(null)
@@ -224,7 +232,8 @@ export default function UnifiedOfferModal({
         setItems(normalizedItems)
         setSelectedItemIndex(normalizedItems.length > 0 ? 0 : null)
 
-        setNights(fullData.duration?.nights || 3)
+        // Duration solo aplica a paquetes, hoteles no tienen duration fijo
+        setNights(fullData.type === 'package' ? (fullData.duration?.nights || 3) : 3)
 
         setMarkupType(fullData.markup?.type || 'percentage')
         setMarkupValue(fullData.markup?.value || 10)
@@ -238,6 +247,7 @@ export default function UnifiedOfferModal({
         setCode(fullData.code || '')
         setDescription(fullData.description || '')
         setStatus((fullData.status as any) || 'draft')
+        setFeatured(!!fullData.featured)
         setCoverImage(fullData.coverPhoto || '')
       } catch (error) {
         console.error('Error loading offer data for edit:', error)
@@ -262,6 +272,7 @@ export default function UnifiedOfferModal({
     setCode('')
     setDescription('')
     setStatus('draft')
+    setFeatured(false)
     setCoverImage('')
     setIsItemSelectionOpen(false)
     onClose()
@@ -331,6 +342,7 @@ export default function UnifiedOfferModal({
         code: code || `${offerType.toUpperCase()}-${Date.now().toString().slice(-6)}`,
         description,
         status,
+        featured,
         markup: {
           type: markupType,
           value: markupValue
@@ -344,7 +356,9 @@ export default function UnifiedOfferModal({
         }
       }
 
-      if (offerType === 'package' || offerType === 'hotel') {
+      // Duration solo aplica a paquetes (precio fijo independiente de fechas)
+      // Hoteles calculan duración dinámicamente según fechas del usuario
+      if (offerType === 'package') {
         payload.duration = { nights }
       }
 
@@ -676,11 +690,19 @@ export default function UnifiedOfferModal({
                           {items.map((item, idx) => (
                             <button
                               key={idx}
-                              onClick={() => setSelectedItemIndex(idx)}
-                              className={`w-full text-left p-2.5 rounded-lg border transition-all ${selectedItemIndex === idx
-                                ? 'bg-primary/10 border-primary shadow-sm'
-                                : 'bg-default-50 border-default-200 hover:border-primary/30 hover:bg-default-100'
-                                }`}
+                              onClick={() => {
+                                // Solo permitir seleccionar items con inventario (no incluidos)
+                                if (!item.included && item.inventoryId) {
+                                  setSelectedItemIndex(idx)
+                                }
+                              }}
+                              className={`w-full text-left p-2.5 rounded-lg border transition-all ${
+                                item.included || !item.inventoryId
+                                  ? 'bg-green-50 border-green-200 opacity-75 cursor-not-allowed'
+                                  : selectedItemIndex === idx
+                                  ? 'bg-primary/10 border-primary shadow-sm'
+                                  : 'bg-default-50 border-default-200 hover:border-primary/30 hover:bg-default-100'
+                              }`}
                             >
                               <div className="flex items-center gap-2">
                                 <div className={`p-1.5 rounded ${selectedItemIndex === idx ? 'bg-primary/20' : 'bg-default-200'}`}>
@@ -691,12 +713,22 @@ export default function UnifiedOfferModal({
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className={`text-xs font-semibold truncate ${selectedItemIndex === idx ? 'text-primary' : 'text-default-900'}`}>
-                                    {item.hotelInfo?.name || item.flightDetails?.route?.from || item.transportInfo?.type || item.activityInfo?.name || 'Item'}
+                                    {item.included 
+                                      ? `${item.resourceType} incluido`
+                                      : item.hotelInfo?.name || item.flightDetails?.route?.from || item.transportOrActivity?.type || 'Item'
+                                    }
                                   </p>
                                   <p className="text-xs text-default-500 truncate">
-                                    {item.resourceType}
+                                    {item.included ? 'Sin costo adicional ($0)' : item.resourceType}
                                   </p>
                                 </div>
+                                {item.included && (
+                                  <div className="flex-shrink-0">
+                                    <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                                      INCLUIDO
+                                    </span>
+                                  </div>
+                                )}
                                 <div
                                   onClick={(e) => {
                                     e.stopPropagation()
@@ -720,6 +752,7 @@ export default function UnifiedOfferModal({
                           ))}
                         </div>
                       )}
+
                     </CardBody>
                   </Card>
                 </div>
@@ -815,10 +848,10 @@ export default function UnifiedOfferModal({
                                             <div className="text-right bg-white/10 backdrop-blur-md rounded-lg p-3 border border-white/20">
                                               <p className="text-xs text-white/80 mb-1">Desde</p>
                                               <p className="text-3xl font-bold text-white">
-                                                ${applyMarkup(cheapestPrice).toFixed(0)}
+                                                ${applyMarkup(cheapestPrice).toFixed(2)}
                                               </p>
                                               <p className="text-xs text-white/60 line-through">
-                                                ${cheapestPrice.toFixed(0)}
+                                                ${cheapestPrice.toFixed(2)}
                                               </p>
                                               <p className="text-xs text-white/80 mt-0.5">por noche</p>
                                             </div>
@@ -909,7 +942,7 @@ export default function UnifiedOfferModal({
                                                     <p className="text-xs text-default-500 mb-1">Doble</p>
                                                     <div className="flex items-baseline gap-2">
                                                       <p className="text-sm font-bold text-default-900">
-                                                        ${applyMarkup(room.capacityPrices.double.adult || 0).toFixed(0)}
+                                                        ${applyMarkup(room.capacityPrices.double.adult || 0).toFixed(2)}
                                                       </p>
                                                       <p className="text-xs text-default-400 line-through">
                                                         ${room.capacityPrices.double.adult || 0}
@@ -923,7 +956,7 @@ export default function UnifiedOfferModal({
                                                     <p className="text-xs text-default-500 mb-1">Sencilla</p>
                                                     <div className="flex items-baseline gap-2">
                                                       <p className="text-sm font-bold text-default-900">
-                                                        ${applyMarkup(room.capacityPrices.single.adult || 0).toFixed(0)}
+                                                        ${applyMarkup(room.capacityPrices.single.adult || 0).toFixed(2)}
                                                       </p>
                                                       <p className="text-xs text-default-400 line-through">
                                                         ${room.capacityPrices.single.adult || 0}
@@ -937,7 +970,7 @@ export default function UnifiedOfferModal({
                                                     <p className="text-xs text-default-500 mb-1">Triple</p>
                                                     <div className="flex items-baseline gap-2">
                                                       <p className="text-sm font-bold text-default-900">
-                                                        ${applyMarkup(room.capacityPrices.triple.adult || 0).toFixed(0)}
+                                                        ${applyMarkup(room.capacityPrices.triple.adult || 0).toFixed(2)}
                                                       </p>
                                                       <p className="text-xs text-default-400 line-through">
                                                         ${room.capacityPrices.triple.adult || 0}
@@ -951,7 +984,7 @@ export default function UnifiedOfferModal({
                                                     <p className="text-xs text-default-500 mb-1">Cuádruple</p>
                                                     <div className="flex items-baseline gap-2">
                                                       <p className="text-sm font-bold text-default-900">
-                                                        ${applyMarkup(room.capacityPrices.quad.adult || 0).toFixed(0)}
+                                                        ${applyMarkup(room.capacityPrices.quad.adult || 0).toFixed(2)}
                                                       </p>
                                                       <p className="text-xs text-default-400 line-through">
                                                         ${room.capacityPrices.quad.adult || 0}
@@ -1336,6 +1369,16 @@ export default function UnifiedOfferModal({
                             <SelectItem key="published">🌐 Publicado</SelectItem>
                             <SelectItem key="archived">📦 Archivado</SelectItem>
                           </Select>
+
+                          <Select
+                            label="Mostrar en Landing"
+                            selectedKeys={[featured ? 'true' : 'false']}
+                            onChange={(e) => setFeatured(e.target.value === 'true')}
+                            variant="bordered"
+                          >
+                            <SelectItem key="false">No</SelectItem>
+                            <SelectItem key="true">Sí</SelectItem>
+                          </Select>
                         </div>
 
                         <Textarea
@@ -1363,22 +1406,20 @@ export default function UnifiedOfferModal({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="p-4 bg-default-50 rounded-lg border border-default-200">
-                          <p className="text-xs font-medium text-default-500 uppercase tracking-wide mb-1.5">Duración</p>
-                          {offerType === 'package' || offerType === 'hotel' ? (
+                      <div className={`grid ${offerType === 'package' ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
+                        {offerType === 'package' && (
+                          <div className="p-4 bg-default-50 rounded-lg border border-default-200">
+                            <p className="text-xs font-medium text-default-500 uppercase tracking-wide mb-1.5">Duración</p>
                             <p className="font-bold text-default-900">
                               {nights} noche{nights !== 1 ? 's' : ''}
                               <span className="text-default-400 font-normal"> • </span>
                               {days} día{days !== 1 ? 's' : ''}
                             </p>
-                          ) : (
-                            <p className="font-bold text-default-900">N/A</p>
-                          )}
-                          <p className="text-xs text-default-500 mt-1">
-                            {offerType === 'package' || offerType === 'hotel' ? 'Días se calculan automáticamente' : 'No aplica para este tipo'}
-                          </p>
-                        </div>
+                            <p className="text-xs text-default-500 mt-1">
+                              Días se calculan automáticamente
+                            </p>
+                          </div>
+                        )}
 
                         <div className="p-4 bg-default-50 rounded-lg border border-default-200">
                           <p className="text-xs font-medium text-default-500 uppercase tracking-wide mb-1.5">Markup</p>
@@ -1476,12 +1517,12 @@ export default function UnifiedOfferModal({
                             {items.length}
                           </p>
                         </div>
-                        <div className="p-4 bg-white rounded-lg border border-default-200 shadow-sm">
+                        {/* <div className="p-4 bg-white rounded-lg border border-default-200 shadow-sm">
                           <p className="text-xs font-medium text-default-500 uppercase tracking-wide mb-1.5">Duración</p>
                           <p className="font-bold text-default-900">
                             {offerType === 'package' || offerType === 'hotel' ? `${nights}N / ${days}D` : 'N/A'}
                           </p>
-                        </div>
+                        </div> */}
                       </div>
 
                       <div className="mt-4 p-3 bg-gradient-to-r from-success/10 to-primary/10 border border-success/20 rounded-lg">

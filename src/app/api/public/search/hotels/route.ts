@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const city = searchParams.get('city') || ''
     const status = searchParams.get('status') || 'published'
+    const featured = searchParams.get('featured')
     const minPrice = searchParams.get('minPrice') ? parseInt(searchParams.get('minPrice')!) : undefined
     const maxPrice = searchParams.get('maxPrice') ? parseInt(searchParams.get('maxPrice')!) : undefined
 
@@ -23,6 +24,10 @@ export async function GET(request: NextRequest) {
       { type: 'hotel' },
       { status }
     ]
+
+    if (featured === 'true') {
+      andConditions.push({ featured: true })
+    }
 
     if (city) {
       andConditions.push({
@@ -44,7 +49,6 @@ export async function GET(request: NextRequest) {
     const filters = andConditions.length > 1 ? { $and: andConditions } : andConditions[0]
 
     const hotels = await Offer.find(filters)
-      .populate('items.inventoryId', 'inventoryName resource pricing')
       .sort({ createdAt: -1 })
       .limit(limit)
       .select('-createdBy -updatedBy -__v')

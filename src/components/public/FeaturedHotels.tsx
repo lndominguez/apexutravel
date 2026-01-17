@@ -22,7 +22,7 @@ const fetcher = async (url: string) => {
 }
 
 export default function FeaturedHotels() {
-  const { data, error, isLoading } = useSWR('/api/public/search/hotels?status=published&limit=6', fetcher)
+  const { data, error, isLoading } = useSWR('/api/public/search/hotels?status=published&featured=true&limit=6', fetcher)
 
   if (isLoading) {
     return (
@@ -55,15 +55,18 @@ export default function FeaturedHotels() {
   const hotels = (data?.hotels || []).slice(0, 6)
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
-      {hotels.map((hotel: any) => {
+    <div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+        {hotels.map((hotel: any) => {
         // Extraer info del hotel desde items
         const hotelItem = hotel.items?.find((item: any) => item.resourceType === 'Hotel')
         const hotelInfo = hotelItem?.hotelInfo
         const roomDetails = hotelItem?.selectedRooms?.[0]
         const selectedRooms = hotelItem?.selectedRooms || []
         const minRoomPrice = getCheapestRoomAdultBasePrice(selectedRooms)
-        const price = minRoomPrice || hotel.pricing?.finalPrice || 0
+        const pricePerAdult = minRoomPrice || hotel.pricing?.finalPrice || 0
+        // Precio para 2 personas por 1 noche
+        const priceFor2People = pricePerAdult * 2
         
         // Calcular habitación más barata y su availability
         const cheapestRoom = selectedRooms.length > 0 
@@ -75,7 +78,7 @@ export default function FeaturedHotels() {
           : null
         const availableStock = cheapestRoom?.availability || 0
 
-        return (
+          return (
           <Card
             key={hotel._id}
             isPressable
@@ -137,10 +140,11 @@ export default function FeaturedHotels() {
                   <p className="text-xs text-gray-500 font-medium">Desde</p>
                   <div className="flex items-baseline gap-1">
                     <span className="text-3xl font-black text-[#ec9c12]">
-                      ${Math.round(price).toLocaleString('es-MX')}
+                      ${priceFor2People.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                     <span className="text-xs text-gray-500 font-medium">{hotel.pricing?.currency || 'USD'}</span>
                   </div>
+                  <p className="text-xs text-gray-400">por 2 personas / 1 noche</p>
                 </div>
               </div>
             </div>
@@ -181,9 +185,9 @@ export default function FeaturedHotels() {
               </div>
               
               {/* Descripción */}
-              {hotel.description && (
-                <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
-                  {hotel.description}
+              {(hotel.description || hotelInfo?.description) && (
+                <p className="text-sm text-gray-600 line-clamp-3 leading-relaxed mt-2">
+                  {hotel.description || hotelInfo?.description}
                 </p>
               )}
             </CardBody>
@@ -209,8 +213,18 @@ export default function FeaturedHotels() {
               </div>
             </CardFooter>
           </Card>
-        )
-      })}
+          )
+        })}
+      </div>
+
+      <div className="flex justify-center mt-10">
+        <Link
+          href="/search/hotels"
+          className="text-sm font-bold text-[#0c3f5b] hover:text-[#ec9c12] transition-colors"
+        >
+          Ver más hoteles
+        </Link>
+      </div>
     </div>
   )
 }

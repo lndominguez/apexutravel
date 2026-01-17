@@ -14,17 +14,34 @@ firebase.initializeApp(firebaseConfig)
 
 const messaging = firebase.messaging()
 
+self.addEventListener('install', () => {
+  // Asegura que el SW nuevo se active sin esperar
+  self.skipWaiting()
+})
+
+self.addEventListener('activate', (event) => {
+  // Asegura que el SW controle las páginas abiertas
+  event.waitUntil(self.clients.claim())
+})
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
+})
+
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message:', payload)
 
   const notificationTitle = payload.notification?.title || 'Nueva notificación'
   const notificationOptions = {
     body: payload.notification?.body || '',
-    icon: payload.notification?.icon || '/icon-192x192.png',
-    badge: '/badge-72x72.png',
+    icon: payload.notification?.icon || '/logo/apex.png',
+    badge: '/logo/apex.png',
     tag: payload.data?.notificationId || 'notification',
     data: {
-      url: payload.data?.clickAction || '/',
+      // FCM webpush link viene en fcmOptions.link; mantenemos compat con payload.data.clickAction
+      url: payload?.fcmOptions?.link || payload.data?.clickAction || '/',
       ...payload.data
     },
     requireInteraction: payload.data?.priority === 'urgent',

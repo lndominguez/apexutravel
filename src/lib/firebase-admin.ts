@@ -8,6 +8,14 @@ export function getFirebaseAdmin() {
   }
 
   try {
+    // Verificar si ya existe una app inicializada
+    const existingApps = admin.apps
+    if (existingApps.length > 0) {
+      firebaseAdmin = existingApps[0] as admin.app.App
+      console.log('✅ Using existing Firebase Admin app')
+      return firebaseAdmin
+    }
+
     let privateKey = process.env.FIREBASE_PRIVATE_KEY
     
     if (!privateKey || !process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL) {

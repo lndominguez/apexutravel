@@ -409,7 +409,7 @@ function OffersContent() {
                   {salePrice && (
                     <div className="flex items-baseline gap-1 mb-2">
                       <span className="text-lg font-bold text-success-600">
-                        ${salePrice.toFixed(0)}
+                        ${salePrice.toFixed(2)}
                       </span>
                     </div>
                   )}

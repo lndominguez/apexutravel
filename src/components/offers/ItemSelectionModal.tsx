@@ -72,8 +72,20 @@ export default function ItemSelectionModal({
         matchesPricingMode = item.pricingMode === 'per_night'
       }
     }
+
+    // Para paquetes: no mostrar en el listado los inventarios "incluidos" ($0)
+    // porque se agregan con el botón "Agregar incluido"
+    let excludeIncludedInventory = false
+    if (offerType === 'package' && selectedItemType === 'Flight') {
+      const cost = item?.pricing?.adult?.cost ?? 0
+      excludeIncludedInventory = cost === 0 || item?.inventoryCode === 'FLIGHT-INCLUDED-001'
+    }
+    if (offerType === 'package' && selectedItemType === 'Transport') {
+      const cost = item?.pricing?.cost ?? 0
+      excludeIncludedInventory = cost === 0 || item?.inventoryCode === 'TRANSPORT-INCLUDED-001'
+    }
     
-    return matchesSearch && matchesDestination && matchesPricingMode
+    return matchesSearch && matchesDestination && matchesPricingMode && !excludeIncludedInventory
   }) || []
 
   // Reset al cambiar tipo
@@ -83,12 +95,121 @@ export default function ItemSelectionModal({
     }
   }, [isOpen, offerType])
 
+  const handleAddIncluded = async () => {
+    const INCLUDED_INVENTORY_CODE: Record<string, string> = {
+      Flight: 'FLIGHT-INCLUDED-001',
+      Transport: 'TRANSPORT-INCLUDED-001'
+    }
+
+    const inventoryCode = INCLUDED_INVENTORY_CODE[selectedItemType]
+    if (!inventoryCode) return
+
+    let includedInventory: any = null
+    try {
+      // 1) Intentar resolver desde la lista ya cargada
+      const localMatch = items?.find((i: any) => i?.inventoryCode === inventoryCode)
+      if (localMatch?._id) {
+        includedInventory = localMatch
+      } else {
+        // 2) Intentar por API usando inventoryCode
+        const params = new URLSearchParams()
+        params.set('resourceType', selectedItemType)
+        params.set('status', 'active')
+        params.set('inventoryCode', inventoryCode)
+        params.set('limit', '1')
+
+        const res = await fetch(`/api/inventory?${params.toString()}`)
+        const json = await res.json()
+        includedInventory = json?.items?.[0]
+
+        // 3) Fallback: buscar cualquier item con costo 0 (si el código no existe)
+        if (!res.ok || !includedInventory?._id) {
+          const params2 = new URLSearchParams()
+          params2.set('resourceType', selectedItemType)
+          params2.set('status', 'active')
+          params2.set('limit', '200')
+
+          const res2 = await fetch(`/api/inventory?${params2.toString()}`)
+          const json2 = await res2.json()
+          const candidates = json2?.items || []
+
+          if (selectedItemType === 'Flight') {
+            includedInventory = candidates.find((c: any) => (c?.pricing?.adult?.cost ?? 0) === 0)
+          } else if (selectedItemType === 'Transport') {
+            includedInventory = candidates.find((c: any) => (c?.pricing?.cost ?? 0) === 0)
+          }
+        }
+      }
+
+      if (!includedInventory?._id) {
+        console.error(`No se encontró el item incluido en inventario para ${selectedItemType}. Crea/activa un inventario con costo 0 o define inventoryCode: ${inventoryCode}`)
+        return
+      }
+    } catch (e) {
+      console.error(`Error buscando item incluido en inventario para ${selectedItemType}:`, e)
+      return
+    }
+
+    const itemData: any = {
+      inventoryId: includedInventory._id,
+      resourceType: selectedItemType,
+      mandatory: true,
+      included: true
+    }
+
+    if (selectedItemType === 'Flight') {
+      itemData.flightDetails = {
+        route: {
+          from: includedInventory.resource?.route?.from || '',
+          to: includedInventory.resource?.route?.to || ''
+        },
+        class: includedInventory.configuration?.class || 'economy'
+      }
+    }
+
+    if (selectedItemType === 'Transport') {
+      itemData.transportOrActivity = {
+        type: includedInventory.configuration?.serviceType || 'standard',
+        route: {
+          from: includedInventory.resource?.route?.from || '',
+          to: includedInventory.resource?.route?.to || ''
+        },
+        direction: 'one_way',
+        pricing: {
+          adult: 0,
+          child: 0,
+          infant: 0
+        }
+      }
+    }
+
+    if (selectedItemType === 'Activity') {
+      itemData.transportOrActivity = {
+        type: 'activity_included',
+        route: {
+          from: includedInventory.resource?.route?.from || '',
+          to: includedInventory.resource?.route?.to || ''
+        },
+        direction: 'one_way',
+        pricing: {
+          adult: 0,
+          child: 0,
+          infant: 0
+        }
+      }
+    }
+
+    onSelect(itemData)
+    onClose()
+  }
+
   const handleSelect = (item: any) => {
     // Construir el objeto según el tipo de item
     const itemData: any = {
       inventoryId: item._id,
       resourceType: selectedItemType,
-      mandatory: true
+      mandatory: true,
+      included: false // Tiene precio del inventario
     }
 
     // Agregar metadata específica según el tipo
@@ -114,6 +235,34 @@ export default function ItemSelectionModal({
           to: item.resource?.route?.to || ''
         },
         class: item.resource?.class || 'economy'
+      }
+    } else if (selectedItemType === 'Transport') {
+      itemData.transportOrActivity = {
+        type: item.configuration?.serviceType || item.resource?.type || 'standard',
+        route: {
+          from: item.resource?.route?.from || '',
+          to: item.resource?.route?.to || ''
+        },
+        direction: 'one_way',
+        pricing: {
+          adult: 0,
+          child: 0,
+          infant: 0
+        }
+      }
+    } else if (selectedItemType === 'Activity') {
+      itemData.transportOrActivity = {
+        type: item.resource?.type || item.inventoryName || 'activity',
+        route: {
+          from: item.resource?.route?.from || '',
+          to: item.resource?.route?.to || ''
+        },
+        direction: 'one_way',
+        pricing: {
+          adult: 0,
+          child: 0,
+          infant: 0
+        }
       }
     }
 
@@ -227,6 +376,32 @@ export default function ItemSelectionModal({
                   }
                 />
               </Tabs>
+            )}
+
+            {/* Botón para agregar como incluido (solo para Flight, Transport) */}
+            {offerType === 'package' && ['Flight', 'Transport'].includes(selectedItemType) && (
+              <div className="mt-3 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border-2 border-green-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <h4 className="font-bold text-sm text-green-900 mb-1">
+                      {selectedItemType === 'Flight' && '✈️ Vuelo incluido en paquete'}
+                      {selectedItemType === 'Transport' && '🚌 Transporte incluido en paquete'}
+                    </h4>
+                    <p className="text-xs text-green-700">
+                      Agregar sin seleccionar inventario específico (precio $0)
+                    </p>
+                  </div>
+                  <Button
+                    color="success"
+                    variant="shadow"
+                    size="sm"
+                    onPress={handleAddIncluded}
+                    className="font-semibold"
+                  >
+                    Agregar incluido
+                  </Button>
+                </div>
+              </div>
             )}
 
             {/* Lista de items */}

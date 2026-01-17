@@ -7,6 +7,7 @@ interface InventoryFilters {
   season?: 'low' | 'regular' | 'high' | 'peak'
   validDate?: string
   pricingMode?: 'per_night' | 'package'
+  inventoryCode?: string
   page?: number
   limit?: number
 }
@@ -109,6 +110,7 @@ export function useInventory(filters: InventoryFilters = {}) {
   if (filters.season) params.append('season', filters.season)
   if (filters.validDate) params.append('validDate', filters.validDate)
   if (filters.pricingMode) params.append('pricingMode', filters.pricingMode)
+  if (filters.inventoryCode) params.append('inventoryCode', filters.inventoryCode)
   if (filters.page) params.append('page', filters.page.toString())
   if (filters.limit) params.append('limit', filters.limit.toString())
 

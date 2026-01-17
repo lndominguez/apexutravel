@@ -9,6 +9,7 @@ export interface IOffer extends Document {
   slug: string
   type: 'hotel' | 'flight' | 'transport' | 'activity' | 'package'
   status: 'draft' | 'published' | 'archived'
+  featured?: boolean
   
   // Duración (para ofertas de hotel y paquetes)
   duration?: {
@@ -26,9 +27,10 @@ export interface IOffer extends Document {
   
   // Items incluidos en la oferta
   items: Array<{
-    inventoryId: mongoose.Types.ObjectId
+    inventoryId?: mongoose.Types.ObjectId // Opcional si es un item incluido sin inventario
     resourceType: string // Hotel, Flight, Transport, Activity
     mandatory: boolean
+    included?: boolean // true = viene incluido con el proveedor (precio $0), false/undefined = tiene precio
     
     // Para hoteles
     // Metadata mínima del hotel (solo para display rápido, la verdad viene del resource)
@@ -176,6 +178,12 @@ const OfferSchema = new Schema<IOffer>({
     default: 'draft',
     index: true
   },
+
+  featured: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
   
   // Duración (para ofertas de hotel y paquetes) - days se calcula como nights + 1
   duration: {
@@ -196,7 +204,7 @@ const OfferSchema = new Schema<IOffer>({
     inventoryId: {
       type: Schema.Types.ObjectId,
       ref: 'Inventory',
-      required: true
+      required: false // Opcional si es un item incluido sin inventario
     },
     resourceType: {
       type: String,
@@ -205,6 +213,10 @@ const OfferSchema = new Schema<IOffer>({
     mandatory: {
       type: Boolean,
       default: true
+    },
+    included: {
+      type: Boolean,
+      default: false // true = viene incluido con el proveedor (precio $0)
     },
     
     // Metadata mínima del hotel (la info completa viene del inventario + resource)

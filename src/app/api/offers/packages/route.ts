@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import connectDB from '@/lib/db/mongoose'
 import Offer from '@/models/Offer'
+import InventoryHotel from '@/models/InventoryHotel'
+import InventoryFlight from '@/models/InventoryFlight'
+import InventoryTransport from '@/models/InventoryTransport'
 
 // GET /api/offers/packages - Listar paquetes con filtros
 export async function GET(request: NextRequest) {
@@ -48,14 +51,6 @@ export async function GET(request: NextRequest) {
 
     const [packages, total] = await Promise.all([
       Offer.find(query)
-        .populate({
-          path: 'items.inventoryId',
-          select: 'inventoryName resource pricing validFrom validTo availability rooms',
-          populate: {
-            path: 'resource',
-            select: 'name photos location stars policies'
-          }
-        })
         .populate('createdBy', 'firstName lastName email')
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -63,6 +58,62 @@ export async function GET(request: NextRequest) {
         .lean(),
       Offer.countDocuments(query)
     ])
+
+    // Enriquecer items.inventoryId consultando los inventarios reales (separados)
+    const inventoryIdsByType: Record<string, string[]> = {
+      Hotel: [],
+      Flight: [],
+      Transport: []
+    }
+
+    for (const pkg of packages as any[]) {
+      for (const item of pkg.items || []) {
+        const id = item?.inventoryId?.toString()
+        if (!id) continue
+        if (item.resourceType === 'Hotel') inventoryIdsByType.Hotel.push(id)
+        if (item.resourceType === 'Flight') inventoryIdsByType.Flight.push(id)
+        if (item.resourceType === 'Transport') inventoryIdsByType.Transport.push(id)
+      }
+    }
+
+    const hotelIds = Array.from(new Set(inventoryIdsByType.Hotel))
+    const flightIds = Array.from(new Set(inventoryIdsByType.Flight))
+    const transportIds = Array.from(new Set(inventoryIdsByType.Transport))
+
+    const [hotelInv, flightInv, transportInv] = await Promise.all([
+      hotelIds.length
+        ? InventoryHotel.find({ _id: { $in: hotelIds } })
+            .populate('resource')
+            .populate('supplier', 'name businessName type contact')
+            .lean()
+        : Promise.resolve([]),
+      flightIds.length
+        ? InventoryFlight.find({ _id: { $in: flightIds } })
+            .populate('resource')
+            .populate('supplier', 'name businessName type contact')
+            .lean()
+        : Promise.resolve([]),
+      transportIds.length
+        ? InventoryTransport.find({ _id: { $in: transportIds } })
+            .populate('resource')
+            .populate('supplier', 'name businessName type contact')
+            .lean()
+        : Promise.resolve([])
+    ])
+
+    const inventoryMap = new Map<string, any>()
+    for (const inv of hotelInv as any[]) inventoryMap.set(inv._id.toString(), inv)
+    for (const inv of flightInv as any[]) inventoryMap.set(inv._id.toString(), inv)
+    for (const inv of transportInv as any[]) inventoryMap.set(inv._id.toString(), inv)
+
+    for (const pkg of packages as any[]) {
+      for (const item of pkg.items || []) {
+        const id = item?.inventoryId?.toString()
+        if (!id) continue
+        const inv = inventoryMap.get(id)
+        if (inv) item.inventory = inv
+      }
+    }
 
     return NextResponse.json({
       packages,
@@ -134,6 +185,32 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validar items: para paquetes, todos los items deben tener inventoryId
+    if ((data.type || 'package') === 'package') {
+      if (!Array.isArray(data.items) || data.items.length === 0) {
+        return NextResponse.json(
+          { error: 'Debes agregar al menos un item al paquete' },
+          { status: 400 }
+        )
+      }
+
+      const invalidItem = data.items.find((i: any) => !i?.resourceType)
+      if (invalidItem) {
+        return NextResponse.json(
+          { error: 'Todos los items deben tener resourceType' },
+          { status: 400 }
+        )
+      }
+
+      const itemMissingInventory = data.items.find((i: any) => !i?.inventoryId)
+      if (itemMissingInventory) {
+        return NextResponse.json(
+          { error: 'Todos los items del paquete deben venir de inventario (inventoryId requerido). Para "incluido", selecciona el item $0 del inventario.' },
+          { status: 400 }
+        )
+      }
+    }
+
     // Crear oferta (respetando el tipo enviado)
     const packageData = {
       ...data,
@@ -145,9 +222,8 @@ export async function POST(request: NextRequest) {
 
     const newPackage = await Offer.create(packageData)
 
-    // Poblar para respuesta
+    // Responder con el documento recién creado (sin populate incorrecto)
     const populatedPackage = await Offer.findById((newPackage as any)._id)
-      .populate('items.inventoryId', 'inventoryName resource pricing validFrom validTo availability')
       .populate('createdBy', 'firstName lastName email')
       .lean()
 

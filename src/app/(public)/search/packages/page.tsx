@@ -43,7 +43,7 @@ function PackageSearchContent() {
 
       try {
         setIsLoadingPackages(true)
-        const qs = new URLSearchParams({ limit: '100', status: 'active' })
+        const qs = new URLSearchParams({ limit: '100', status: 'published' })
 
         // Agregar todos los parámetros que existan
         if (urlDestination) qs.set('destination', urlDestination)
