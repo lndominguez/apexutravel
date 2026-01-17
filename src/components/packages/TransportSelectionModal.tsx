@@ -152,20 +152,20 @@ export default function TransportSelectionModal({
                             <span>{item.resource?.capacity?.passengers} pasajeros</span>
                           </div>
                           <Chip size="sm" variant="flat" color="primary">
-                            {item.configuration.serviceType === 'private' ? 'Privado' :
-                             item.configuration.serviceType === 'shared' ? 'Compartido' :
-                             item.configuration.serviceType === 'luxury' ? 'Lujo' : 'Estándar'}
+                            {item?.configuration?.serviceType === 'private' ? 'Privado' :
+                             item?.configuration?.serviceType === 'shared' ? 'Compartido' :
+                             item?.configuration?.serviceType === 'luxury' ? 'Lujo' : 'Estándar'}
                           </Chip>
                         </div>
 
                         <div className="flex justify-between items-center">
                           <div>
                             <span className="text-lg font-bold text-primary">
-                              ${item.pricing.sellingPrice || 0}
+                              ${item?.pricing?.sellingPrice || 0}
                             </span>
                           </div>
-                          <Chip size="sm" color={item.availability > 5 ? 'success' : 'warning'}>
-                            {item.availability} cupos
+                          <Chip size="sm" color={(item?.availability ?? 0) > 5 ? 'success' : 'warning'}>
+                            {item?.availability ?? 0} cupos
                           </Chip>
                         </div>
                       </div>
@@ -225,9 +225,9 @@ export default function TransportSelectionModal({
               <div>
                 <p className="text-xs text-gray-600 mb-1">Tipo de Servicio</p>
                 <Chip color="primary" variant="flat">
-                  {selectedItem.configuration.serviceType === 'private' ? 'Servicio Privado' :
-                   selectedItem.configuration.serviceType === 'shared' ? 'Servicio Compartido' :
-                   selectedItem.configuration.serviceType === 'luxury' ? 'Servicio de Lujo' : 'Servicio Estándar'}
+                  {selectedItem?.configuration?.serviceType === 'private' ? 'Servicio Privado' :
+                   selectedItem?.configuration?.serviceType === 'shared' ? 'Servicio Compartido' :
+                   selectedItem?.configuration?.serviceType === 'luxury' ? 'Servicio de Lujo' : 'Servicio Estándar'}
                 </Chip>
               </div>
 
@@ -287,24 +287,24 @@ export default function TransportSelectionModal({
                     <div>
                       <p className="text-xs text-gray-600 mb-1">Precio de Venta</p>
                       <p className="text-3xl font-bold text-primary">
-                        ${selectedItem.pricing.sellingPrice?.toFixed(2)}
+                        ${(selectedItem?.pricing?.sellingPrice ?? 0).toFixed(2)}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-gray-600">Costo</p>
                       <p className="text-lg text-gray-700">
-                        ${selectedItem.pricing.cost?.toFixed(2)}
+                        ${(selectedItem?.pricing?.cost ?? 0).toFixed(2)}
                       </p>
                       <p className="text-sm text-success font-semibold mt-1">
-                        Ganancia: ${((selectedItem.pricing.sellingPrice || 0) - (selectedItem.pricing.cost || 0)).toFixed(2)}
+                        Ganancia: ${(((selectedItem?.pricing?.sellingPrice || 0) - (selectedItem?.pricing?.cost || 0))).toFixed(2)}
                       </p>
                     </div>
                   </div>
                   <div className="mt-3 pt-3 border-t border-gray-200">
                     <div className="flex justify-between text-xs">
                       <span className="text-gray-600">Disponibilidad:</span>
-                      <Chip size="sm" color={selectedItem.availability > 5 ? 'success' : 'warning'}>
-                        {selectedItem.availability} cupos
+                      <Chip size="sm" color={(selectedItem?.availability ?? 0) > 5 ? 'success' : 'warning'}>
+                        {selectedItem?.availability ?? 0} cupos
                       </Chip>
                     </div>
                   </div>

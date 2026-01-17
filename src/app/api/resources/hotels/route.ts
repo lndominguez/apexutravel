@@ -86,7 +86,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
+    const body: any = await request.json()
+    if (Array.isArray(body)) {
+      return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
+    }
 
     if (!body.name || !body.location?.city || !body.location?.country) {
       return NextResponse.json(
@@ -95,11 +98,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const newHotel = await Hotel.create({
+    const newHotel = await new Hotel({
       ...body,
       createdBy: session.user.id,
       status: body.status || 'active'
-    })
+    }).save()
 
     const populatedHotel = await Hotel.findById(newHotel._id)
       .populate('createdBy', 'firstName lastName email')

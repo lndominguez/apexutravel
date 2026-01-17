@@ -52,7 +52,7 @@ export default function FlightSelectionModal({
   
   // Filtrar por tipo de vuelo (ida/vuelta)
   const filteredByType = inventory?.filter(item => 
-    item.configuration.flightType === flightType
+    item?.configuration?.flightType === flightType
   ) || []
 
   const handleItemClick = (item: any) => {
@@ -201,10 +201,10 @@ export default function FlightSelectionModal({
 
                           <div className="flex gap-2 mt-2">
                             <Chip size="sm" variant="flat" color="secondary">
-                              {item.configuration.class === 'economy' ? 'Económica' :
-                               item.configuration.class === 'premium_economy' ? 'Premium' :
-                               item.configuration.class === 'business' ? 'Business' :
-                               item.configuration.class === 'first' ? 'Primera' : item.configuration.class}
+                              {item?.configuration?.class === 'economy' ? 'Económica' :
+                               item?.configuration?.class === 'premium_economy' ? 'Premium' :
+                               item?.configuration?.class === 'business' ? 'Business' :
+                               item?.configuration?.class === 'first' ? 'Primera' : (item?.configuration?.class || '-')}
                             </Chip>
                           </div>
                         </div>
@@ -213,14 +213,14 @@ export default function FlightSelectionModal({
                         <div className="text-right">
                           <p className="text-xs text-gray-600 mb-1">Precio Adulto</p>
                           <p className="text-xl font-bold text-primary">
-                            ${item.pricing.adult?.sellingPrice || 0}
+                            ${item?.pricing?.adult?.sellingPrice || 0}
                           </p>
                           <div className="text-xs text-gray-500 mt-1">
-                            <p>Niño: ${item.pricing.child?.sellingPrice || 0}</p>
-                            <p>Infante: ${item.pricing.infant?.sellingPrice || 0}</p>
+                            <p>Niño: ${item?.pricing?.child?.sellingPrice || 0}</p>
+                            <p>Infante: ${item?.pricing?.infant?.sellingPrice || 0}</p>
                           </div>
-                          <Chip size="sm" color={item.availability > 10 ? 'success' : 'warning'} className="mt-1">
-                            {item.availability} cupos
+                          <Chip size="sm" color={(item?.availability ?? 0) > 10 ? 'success' : 'warning'} className="mt-1">
+                            {item?.availability ?? 0} cupos
                           </Chip>
                         </div>
                       </div>

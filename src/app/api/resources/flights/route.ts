@@ -85,7 +85,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
+    const body: any = await request.json()
+    if (Array.isArray(body)) {
+      return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
+    }
 
     if (!body.flightNumber || !body.airline || !body.route?.from || !body.route?.to) {
       return NextResponse.json(
@@ -94,11 +97,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const newFlight = await Flight.create({
+    const newFlight = await new Flight({
       ...body,
       createdBy: session.user.id,
       status: body.status || 'active'
-    })
+    }).save()
 
     const populatedFlight = await Flight.findById(newFlight._id)
       .populate('createdBy', 'firstName lastName email')

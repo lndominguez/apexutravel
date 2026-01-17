@@ -80,7 +80,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
+    const body: any = await request.json()
+    if (Array.isArray(body)) {
+      return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
+    }
 
     if (!body.name || !body.type) {
       return NextResponse.json(
@@ -89,11 +92,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const newTransport = await Transport.create({
+    const newTransport = await new Transport({
       ...body,
       createdBy: session.user.id,
       status: body.status || 'active'
-    })
+    }).save()
 
     const populatedTransport = await Transport.findById(newTransport._id)
       .populate('createdBy', 'firstName lastName email')

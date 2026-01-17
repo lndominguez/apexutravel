@@ -98,7 +98,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
+    const body: any = await request.json()
+    if (Array.isArray(body)) {
+      return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
+    }
 
     // Validaciones básicas
     if (!body.name || !body.type || !body.email || !body.phone) {
@@ -120,11 +123,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Crear proveedor
-    const newSupplier = await Supplier.create({
+    const newSupplier = await new Supplier({
       ...body,
       createdBy: session.user.id,
       status: body.status || 'pending_approval'
-    }) as any
+    }).save()
 
     // Poblar el createdBy para la respuesta
     const populatedSupplier = await Supplier.findById(newSupplier._id)

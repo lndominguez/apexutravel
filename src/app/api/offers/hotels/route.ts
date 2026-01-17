@@ -58,10 +58,10 @@ export async function GET(request: NextRequest) {
     ])
 
     // Enriquecer cada hotel con imágenes del resource
-    for (const hotel of hotels) {
+    for (const hotel of hotels as any[]) {
       if (hotel.items && hotel.items.length > 0) {
-        for (const item of hotel.items) {
-          if (item.resourceType === 'Hotel' && item.selectedRooms && item.selectedRooms.length > 0) {
+        for (const item of hotel.items as any[]) {
+          if (item.resourceType === 'Hotel' && (item as any).selectedRooms && (item as any).selectedRooms.length > 0) {
             const resourceId = item.hotelInfo?.resourceId
             
             if (resourceId) {
@@ -72,12 +72,13 @@ export async function GET(request: NextRequest) {
                 
                 if (hotelResource) {
                   // Agregar fotos del hotel si no existen en hotelInfo
-                  if (item.hotelInfo && (!item.hotelInfo.photos || item.hotelInfo.photos.length === 0)) {
-                    item.hotelInfo.photos = hotelResource.photos || []
+                  const hotelInfo = (item as any).hotelInfo
+                  if (hotelInfo && (!hotelInfo.photos || hotelInfo.photos.length === 0)) {
+                    hotelInfo.photos = hotelResource.photos || []
                   }
                   
                   // Enriquecer selectedRooms con fotos
-                  item.selectedRooms = item.selectedRooms.map((room: any) => {
+                  ;(item as any).selectedRooms = (item as any).selectedRooms.map((room: any) => {
                     const roomType = hotelResource.roomTypes?.find((rt: any) => 
                       rt._id?.toString() === room.roomTypeId?.toString()
                     )
@@ -128,7 +129,10 @@ export async function POST(request: NextRequest) {
 
     await connectDB()
 
-    const data = await request.json()
+    const data: any = await request.json()
+    if (Array.isArray(data)) {
+      return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
+    }
 
     // Validaciones básicas
     if (!data.name) {
@@ -185,10 +189,10 @@ export async function POST(request: NextRequest) {
       status: data.status || 'draft'
     }
 
-    const newHotel = await Offer.create(hotelData)
+    const newHotel = await new Offer(hotelData).save()
 
     // Poblar para respuesta
-    const populatedHotel = await Offer.findById((newHotel as any)._id)
+    const populatedHotel = await Offer.findById(newHotel._id)
       .populate('items.inventoryId', 'inventoryName resource pricing validFrom validTo availability rooms')
       .populate('createdBy', 'firstName lastName email')
       .lean()

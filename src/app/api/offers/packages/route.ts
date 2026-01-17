@@ -143,7 +143,10 @@ export async function POST(request: NextRequest) {
 
     await connectDB()
 
-    const data = await request.json()
+    const data: any = await request.json()
+    if (Array.isArray(data)) {
+      return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
+    }
 
     // Validaciones básicas
     if (!data.name || !data.code) {
@@ -220,10 +223,10 @@ export async function POST(request: NextRequest) {
       status: data.status || 'draft'
     }
 
-    const newPackage = await Offer.create(packageData)
+    const newPackage = await new Offer(packageData).save()
 
     // Responder con el documento recién creado (sin populate incorrecto)
-    const populatedPackage = await Offer.findById((newPackage as any)._id)
+    const populatedPackage = await Offer.findById(newPackage._id)
       .populate('createdBy', 'firstName lastName email')
       .lean()
 

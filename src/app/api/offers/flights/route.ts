@@ -37,11 +37,14 @@ export async function POST(request: NextRequest) {
     if (!currentUser || !['super_admin', 'admin', 'manager'].includes(currentUser.role)) {
       return NextResponse.json({ error: 'No tienes permisos' }, { status: 403 })
     }
-    const body = await request.json()
+    const body: any = await request.json()
+    if (Array.isArray(body)) {
+      return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
+    }
     if (!body.name || !body.items || body.items.length === 0) {
       return NextResponse.json({ error: 'Faltan campos requeridos: name, items' }, { status: 400 })
     }
-    const newOffer = await Offer.create({ ...body, type: 'flight', createdBy: session.user.id })
+    const newOffer = await new Offer({ ...body, type: 'flight', createdBy: session.user.id }).save()
     const populatedOffer = await Offer.findById(newOffer._id).populate('createdBy', 'firstName lastName email').lean()
     return NextResponse.json({ message: 'Oferta de vuelo creada exitosamente', offer: populatedOffer }, { status: 201 })
   } catch (error: any) {
